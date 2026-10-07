@@ -139,3 +139,8 @@ These ideas are intentionally outside the MVP:
 - Liner notes and credits
 - Listening statistics
 - Additional music services
+## Guided introduction
+
+- Add a step-by-step tutorial for opening a bin, browsing records, flipping a sleeve, tapping the vinyl to play, pausing/scrubbing, and filing records or setting genres.
+- Anchor each step to the relevant control; support touch and keyboard navigation.
+- Include Skip, Back, Next, and a persistent “Don’t show again” preference, with a way to reopen the tutorial from settings.

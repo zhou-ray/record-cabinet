@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+!.env.example
+
+# Local agent tooling and private exports
+/.codex/
+/.agents/
+/record-cabinet-*.json

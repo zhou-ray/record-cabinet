@@ -1,0 +1,31 @@
+name: Report a problem
+description: Help improve browsing, playback, or imports.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: "Do not include Spotify tokens, account identifiers, or library backups. Review diagnostics before sharing publicly."
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to repeat
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and browser
+      placeholder: iPhone Safari, desktop Chrome, etc.
+  - type: textarea
+    id: report
+    attributes:
+      label: Optional diagnostic report
+      description: Copy from Library & settings → Report a problem. Review before posting.
+      render: text

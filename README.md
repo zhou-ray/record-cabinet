@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Record Cabinet
 
-## Getting Started
+A tactile, album-first music library for the web. Flip through record bins, pull out a sleeve, read the back cover, and put a record on the turntable.
 
-First, run the development server:
+**[Try the no-login demo](https://record-cabinet-livid.vercel.app/?demo=1)** · [Architecture](docs/architecture.md) · [Testing](docs/public-beta.md) · [Spotify setup](docs/spotify-setup.md)
 
-```bash
+The goal is to preserve the pleasure of browsing a physical collection while removing its space and cost constraints. This is a functional beta; Spotify integration is available to invited accounts, while the demo works without Spotify.
+
+![Record Cabinet: a bin of fictional albums with paper dividers](docs/images/demo-1400.png)
+
+[Mobile screenshot](docs/images/demo-390.png)
+
+## Features
+
+- Touch, mouse, and keyboard browsing with paper dividers, remembered positions, random records, and a Recently added bin.
+- Artist, album, genre, and custom organization, including non-Latin names.
+- Integrated turntable with whole-album tonearm scrubbing and play/pause controls; playback persists between records and settings.
+- Resumable Spotify imports with duplicate suppression, local export-file imports, and metadata caching.
+- Local library persistence, collection backups, and account-scoped cloud synchronization.
+- A no-login fictional catalog with original synthesized demo audio.
+
+## Run locally
+
+Use Node.js 22 and npm.
+
+```sh
+npm ci
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://127.0.0.1:3000. The demo needs no credentials. For Spotify, copy `.env.example` to `.env.local` and follow [Spotify setup](docs/spotify-setup.md). Never commit real credentials.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Controls
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open a bin and drag through the sleeves, or use Left/Right. Tap a sleeve (Enter/Space) to lift it and reveal its back. Tap the vinyl peeking out to play. Tap the back or swipe down to return it; the track list scrolls separately. Divider tabs advance through a larger bin. The turntable arm scrubs across the album.
 
-## Learn More
+The public demo contains 60 fictional sleeves; the extra sleeves reuse the 15 original synthesized audio sketches. Open All records to try the divider tabs. Audio does not come from real artists. It demonstrates playback interaction rather than commercial music streaming.
 
-To learn more about Next.js, take a look at the following resources:
+## Engineering
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Built with Next.js App Router, React, TypeScript, and Motion. IndexedDB preserves local collections and import checkpoints; server routes integrate Spotify and shared cloud storage. The application distinguishes library metadata from playable audio and keeps provider failures from removing saved records.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+See [architecture and tradeoffs](docs/architecture.md) for persistent playback, motion rendering, import recovery, and testing boundaries.
 
-## Deploy on Vercel
+## Validate
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```sh
+npm run lint
+npm test
+npm run build -- --webpack
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+GitHub Actions runs these checks on pushes and pull requests without production credentials. Standalone scripts in `scripts/*-smoke.cjs` cover browser interactions with mocked provider responses; see [testing](docs/public-beta.md).
+
+## Status and feedback
+
+Public demo testing and a small invited Spotify beta. Browser audio, background playback, and native media controls vary by device. Automated Spotify tests use mocks; passing them does not verify live streaming.
+
+Use **Library & settings → Report a problem** to describe an issue and optionally attach diagnostics. Reports are reviewed and copied/downloaded by the user; nothing is sent automatically. Share reports with the project maintainer or through this repository's Issues once published. Do not post credentials or personal library backups.
+
+[Deployment guide](docs/deployment.md) · [Privacy](https://record-cabinet-livid.vercel.app/privacy)
