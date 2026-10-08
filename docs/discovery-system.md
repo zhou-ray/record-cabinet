@@ -1301,3 +1301,14 @@ A `CustomSystem` contains arbitrary named bins and an `assignments: Record<album
 - Future synchronization must not resurrect reset history from another device; current additive album merge is inappropriate for this data.
 - Reserve generated-bin feedback fields/types for later milestones, without collecting unused metadata now.
 - No production-provider calls are required for Milestone 0 acceptance. Automated coverage cannot establish native background playback behavior.
+
+
+## Milestone 1 foundation decision record (partial)
+
+The first implementation boundary adds `app/lib/engagement.ts` and `app/lib/engagement-storage.ts`, with unit and real-IndexedDB browser checks. They are not imported by the live app. Milestone 1 remains incomplete; use `discovery-progress.md` as the authoritative handoff.
+
+Use a separate native IndexedDB database `record-cabinet-engagement:<accountHash>` (v1, events/sessions stores), instead of the previously proposed upgrade to the live library database. This isolates history transactions and future deletion from existing albums/settings. It requires integration with account deletion before runtime collection; it does not automatically participate in library backup or cloud sync.
+
+Completion uses unique verified coverage / frozen available album duration, with total consumed seconds retained separately. Pauses and repeated sections do not inflate unique coverage. Monotonic observation intervals over 30 seconds, seek jumps, unmatched observations, and explicit continuity interruptions earn no consumption credit. Reload recovers saved totals but not an unobserved time interval. The adapter must start only after confirmed playback, interrupt on seeking/uncertainty, and supply observations plus bounded periodic checkpoints. A configured 15-second checkpoint interval has no runtime scheduler yet.
+
+Storage performs atomic session/event commits, whitelists fields, rejects account mismatches, deduplicates stable IDs, and prevents stale checkpoint regression. These safeguards do not constitute a multi-tab playback ownership protocol or a retention policy; both remain required before enabling instrumentation. No raw SDK payloads, OAuth credentials, recommendation scoring, discovery UI, export/reset controls, or collection-enable flag were added at this boundary.

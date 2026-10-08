@@ -2,9 +2,11 @@
 
 ## Current milestone
 
-Milestone 0 — Repository Reconnaissance.
+Milestone 1 — Behavioral Instrumentation.
 
-**Status:** Complete. STOPPED at Milestone 0. Milestone 1 is not authorized by the current request and has not begun.
+**Status: INCOMPLETE, paused at a clean implementation boundary.** The event/session model, pure consumption accumulator, and device-local persistence foundation are implemented and tested. They are deliberately **not connected to the application**. No real browsing/listening behavior is collected. Resume Milestone 1, not Milestone 2.
+
+The current user authorized the next unfinished milestone and explicitly allowed stopping at a safe sub-boundary. No later milestone work has begun.
 
 ## Architecture findings
 
@@ -36,54 +38,73 @@ See `discovery-system.md` for the preserved complete specification and detailed 
 
 ## Completed work
 
-- Read the supplied specification and inspected the clean starting Git state.
-- Inspected authentication, imports, saved state, storage/sync, personal bins, sleeve selection, playback confirmation, and album-end handling.
-- Preserved the specification verbatim and appended repository-specific adaptation notes.
-- Identified event capture boundaries and duplication/seek/navigation hazards.
-- Documented storage and identity proposals without introducing schemas or runtime code.
-- Validated the unchanged application.
+- Read both discovery documents and inspected the clean repository at `9c09a4c` before starting.
+- Added typed inspection/start/completion events and versioned playback-session summaries with account and canonical Spotify album identity.
+- Added centralized completion (75%), maximum confirmed observation gap (30 seconds), progress tolerance (1 second), and intended checkpoint interval (15 seconds) constants. No recommendation weights or scores added.
+- Added a pure accumulator with explicit continuity interruption, bounded verified progress accounting, unique coverage, repeat-safe completion, and finalization. It never infers consumption merely from needle position or time since play was requested.
+- Added separate account-scoped IndexedDB storage for events/sessions. Summary and start/completion events save atomically; retry IDs are idempotent; older revisions cannot undo newer checkpoints; divergent same-revision writes reject.
+- Verified account isolation, metadata whitelisting, atomic rollback, concurrent writes, and reload recovery using real Chrome IndexedDB in an isolated browser profile.
+- Added focused Node tests for invalid identities/durations, pauses, seeks, repeated sections, duplicates, stale observations, device loss, reload continuity, completion, and data validation.
 
 ## Files changed
 
-- `docs/discovery-system.md` — original specification plus repository adaptation.
-- `docs/discovery-progress.md` — milestone status and handoff.
+- `app/lib/engagement.ts` — event/session types, canonical identity helper, validators, constants, and pure consumption accumulator.
+- `app/lib/engagement-storage.ts` — account-scoped durable event/session repository.
+- `tests/engagement.test.mjs` — seven focused unit tests.
+- `scripts/engagement-storage-smoke.cjs` — standalone browser test with real IndexedDB.
+- `docs/discovery-system.md` — implementation decisions and remaining boundary appended after the preserved spec.
+- `docs/discovery-progress.md` — this handoff.
 
-No application behavior, dependencies, database schema, provider requests, or UI changed. No deployment is needed for this documentation milestone.
+No existing application module imports the new code. No UI, player, library database, authentication, imports, cloud sync, or deployment behavior changed. No dependency added.
+
+## Implementation decisions
+
+- **Storage:** `record-cabinet-engagement:<hashed-account-id>`, schema version 1, stores `events` and `sessions`. This revises Milestone 0's proposed shared-library upgrade: a separate database avoids upgrading/blocking the active library and keeps future history deletion distinct from album deletion. Still uses native IndexedDB; no new infrastructure. The database opens only when the new repository is called.
+- **Identity:** authenticated 64-character lowercase account hashes only; guest/default scopes reject. The album helper excludes demo/manual/pending playback and canonicalizes resolved Spotify album URIs. This is NOT evidence of saved-library membership.
+- **Consumption:** `listenedSeconds` accumulates verified progression, including replays. `covered` stores merged unique intervals; its fraction of the frozen session duration determines completion. Replaying one section does not make an album complete. No credit for seek jumps, unmatched albums, unknown/nonpositive durations, paused intervals, or gaps longer than 30 seconds.
+- **Duration denominator:** the adapter must supply the available/playable album duration and freeze it for the session. The model persists that denominator. This matches the existing `albumDuration` helper, which excludes unavailable tracks.
+- **Clocks:** monotonic observation times are transient; event/update timestamps are epoch milliseconds. Reload preserves saved totals but resets observation continuity, so offline downtime is not counted. The last durable checkpoint is recoverable; no claim of lossless crash/unload capture.
+- **Session persistence:** stable session ID; one derived start event and at most one completion event. Paused sessions can resume under the same ID; ended sessions are immutable. New sessions must be created only after confirmed matching playback. The repository cannot prove whether the caller actually heard audio.
+- **Collection remains disabled:** no adapters, polling, listeners, background writes, or runtime imports exist yet. Retention/ownership/privacy decisions must be resolved before enabling collection.
 
 ## Tests/checks run
 
-- `npm run build -- --webpack` — PASS, including Next.js TypeScript validation and production build.
-- `npm run lint` — PASS.
-- `npm test` — PASS, 215 tests, 0 failures.
-- Git scope review — only the two discovery documents added.
-- No new browser or live Spotify testing: this milestone changes documentation only.
+- `npm run lint` — PASS (an initial browser-script variable-name lint error was fixed before the final run).
+- `npm test` — PASS: 222 tests, 0 failures (215 existing + 7 engagement tests).
+- `npm run build -- --webpack` — PASS, including TypeScript validation and production page generation.
+- `PLAYWRIGHT_MODULE=/private/tmp/rc-browser/node_modules/playwright node scripts/engagement-storage-smoke.cjs` — PASS with real Chrome IndexedDB: account isolation, idempotent/concurrent writes, stale checkpoint protection, transactional rollback after an injected write failure, metadata exclusion, and recovery after reload.
+- `git diff --check` — PASS.
+- Import/scope inspection — the new modules reference only each other and a type-only Album import; no live app consumers. Existing database/player/UI behavior remains unchanged.
+- No live Spotify requests, cloud data writes, deployment, or push performed.
 
-## Open issues / known issues
+## Known issues / remaining Milestone 1 work
 
-1. **Saved-only eligibility:** playlist/Liked Songs/manual/export records coexist with saved imports. Known-ID suppression can skip a later saved-membership update, and unsaves are not reconciled. Add explicit membership verification before generated bins; do not discard existing cabinet records.
-2. **Consumption semantics:** specify session boundaries, repeated-section accounting, unavailable-track duration denominator, stale/background state handling, crash-checkpoint limits, and multi-tab ownership. Seeking to 75% is not 75% consumed.
-3. **Persistence scope:** initial local engagement storage will not automatically sync. Future event/session/reset merging must differ from the current additive library merge.
-4. **Privacy/provider readiness:** define bounded retention, visibility, export/reset boundaries, and review current Spotify provider requirements before publicly enabling behavioral personalization. No policy approval is inferred from repository reconnaissance.
-5. **Demo isolation:** mock/local demonstration interactions must not train a real-account profile, including when signed-in users choose the demo.
-6. **Canonical identities:** pending export album IDs can resolve later; history needs an intentional identity migration rather than fragmentation or mistaken joins.
-
-These are documented design issues for subsequent milestones, not runtime changes or blockers to completing reconnaissance.
+1. **Inspection adapter missing:** unify pointer/keyboard deliberate selection, assign an interaction ID, and emit once when the sleeve reaches the back. Exclude automatic restore/Continue digging, rerenders, and duplicate animation callbacks. Define pending export identity handling; do not silently drop required inspection cases without documenting the tradeoff.
+2. **Playback adapter missing:** start sessions only on confirmed, matching SDK playback; connect seek/pause/error/device-loss/end/switch boundaries to the accumulator. Keep ownership across records/settings navigation and avoid duplicate starts on resume or reconnect. Handle demo switching explicitly.
+3. **Checkpoints missing:** the 15-second interval is a constant only. Add SDK-state reconciliation/flush/retry scheduling without new Web API polling. App termination, browser suspension, and uncertain state must not add speculative time. Bound write retries and expose failures through a minimal appropriate existing diagnostics path.
+4. **Multiple contexts:** persistence protects duplicate IDs and stale revisions, but does not yet prevent two tabs/devices creating separate sessions for the same playback. Establish ownership/lease or an equivalent conservative policy before enabling collection. Current tests cover concurrent storage calls, not actual multi-tab playback.
+5. **Retention and deletion:** define bounded data retention before runtime use. The new database has no automatic pruning. Existing account-clear tools do not yet clear this separate database; integrate their existing deletion semantics within Milestone 1 as necessary. Dedicated export/reset UI is Milestone 2 and has not been started.
+6. **Recovery:** saved sessions can be loaded and passed to the accumulator with continuity reset, but no runtime resume/abandon policy is wired. Same-revision divergence throws rather than merging conflicting owners; callers must handle it.
+7. **Provider/privacy readiness:** collection remains disconnected. Review applicable provider requirements and document visibility/collection enablement before releasing any behavioral collection. No policy approval inferred.
+8. **Saved-only eligibility and cloud sync:** prior findings remain. Playlist/liked imports are not authoritative saved membership; none of the new history is cloud-synced. Future reset propagation must not resurrect old device history.
+9. **Personal organization signals:** no bin-action event instrumentation yet. Preserve explicit user intent rather than interpreting hydration/cloud updates as actions. Decide its Milestone 1 scope against the core acceptance list before expanding work.
 
 ## Not yet implemented
 
-All Milestones 1–8: durable engagement events, playback-session summaries, 75% completion tracking, personalization export/reset, generated bins, eligibility reconciliation, scoring/assignment, feedback, evaluation, and polish. Existing troubleshooting diagnostics are not substitutes for these features.
+Milestone 1 acceptance is NOT met: real inspections/play starts are not persisted automatically, listening is not collected during app playback, and the 75% event is only verified in isolated module tests. No production behavior is enabled.
 
-## Exact next task
+Milestones 2–8 remain untouched: data controls, generated bins, saved-membership reconciliation, scoring/assignment, organizational feedback, diagnostics/evaluation, and polish.
 
-Wait for explicit authorization for **Milestone 1 only**. On resumption:
+## Exact next step
 
-1. Read both discovery documents and inspect Git status.
-2. Define engagement event/session types and centralized constants in a separable module; choose/document conservative consumption and session semantics before wiring UI.
-3. Implement and test account-scoped durable event/session storage with a non-destructive IndexedDB upgrade, idempotent IDs, and demo exclusion.
-4. Connect one guarded deliberate-inspection path and confirmed playback observations to a testable duration accumulator. Checkpoint consumed time and record completion once; do not implement scoring or generated bins.
-5. Test duplicate renders/events, pause/resume, scrubbing, failures, navigation, account changes, persistence recovery, and the chosen completion threshold. Update this handoff, commit, and STOP after Milestone 1.
+On the next authorized session, read both documents and inspect Git status, then **continue Milestone 1**:
+
+1. Resolve runtime session ownership, retention, canonical inspection identity, and deletion scope; use the tested foundation without claiming it already instruments the UI.
+2. Wire deliberate inspection and confirmed Spotify playback with per-interaction/per-session guards. Add real IndexedDB browser assertions for pointer/keyboard inspection, failed playback, pause/resume, seek, album switch, navigation, reload, account change, and demo exclusion.
+3. Add periodic bounded checkpoints, recoverable writes, and lifecycle cleanup; never use transport end latches as evidence of 75% consumption.
+4. Run tests/lint/typecheck/build and existing player/navigation/gesture checks; update this document. Only mark Milestone 1 complete when all its acceptance criteria are exercised. Commit and STOP; do not begin Milestone 2.
 
 ## Last known stable commit
 
-- Application baseline, checked again during Milestone 0: `4bbddf7e045332b4cc892733a0ce0cb0e698eae1` (`Prepare Record Cabinet public beta`).
-- The Milestone 0 documentation commit is the commit containing this file, titled `docs: complete discovery milestone 0 reconnaissance`. Application code remains at the baseline above.
+- Last committed baseline before this sub-boundary: `9c09a4c` (`docs: complete discovery milestone 0 reconnaissance`); application baseline `4bbddf7`.
+- The commit containing this handoff is titled `feat: add engagement storage and consumption foundation`. It is a partial Milestone 1 commit, not completed behavioral instrumentation. See `git log -1` for its hash.
