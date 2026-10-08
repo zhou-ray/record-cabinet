@@ -88,3 +88,19 @@ test('explicit resume rearms a failed start without inventing playback before co
   assert.equal(f.sessions.size, 1);
   await tracker.dispose();
 });
+
+
+test('inspecting another album during playback never changes the playback session', async () => {
+  const f = fixture(), tracker = f.make();
+  const browsed = { ...album, id: 'spotify:other', playback: { kind: 'spotify', uri: 'spotify:album:other' } };
+  tracker.begin(album); tracker.observe(album, state(0)); await tick(); tracker.observe(album, state(0)); await tick();
+  const started = [...f.sessions.values()][0];
+  tracker.inspect(browsed, 'browse-other'); await tick();
+  f.at(15); tracker.observe(album, state(15)); await tick();
+  assert.equal(f.sessions.size, 1);
+  const current = [...f.sessions.values()][0];
+  assert.equal(current.id, started.id); assert.equal(current.startedAt, started.startedAt);
+  assert.equal(current.albumId, album.id); assert.equal(current.listenedSeconds, 15);
+  assert.equal([...f.inspections.values()][0].albumId, browsed.id);
+  await tracker.dispose();
+});

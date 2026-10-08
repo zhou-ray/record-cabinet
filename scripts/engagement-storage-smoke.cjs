@@ -24,6 +24,12 @@ const sources = Object.fromEntries(['engagement', 'engagement-storage'].map(name
       const { createEngagementStorage } = window.engagementTestModules['engagement-storage'];
       const check = (value, message) => { if (!value) throw new Error(message); };
       const rejects = async (task, message) => { let rejected = false; try { await task(); } catch { rejected = true; } check(rejected, message); };
+      const eventWrites = [];
+      const originalPut = IDBObjectStore.prototype.put;
+      IDBObjectStore.prototype.put = function(value, ...args) {
+        if (this.name === 'events') eventWrites.push(value.id);
+        return originalPut.call(this, value, ...args);
+      };
       const user = 'a'.repeat(64), other = 'b'.repeat(64), albumId = 'spotify:abc';
       const store = createEngagementStorage(user), peer = createEngagementStorage(user), otherStore = createEngagementStorage(other);
       await rejects(() => createEngagementStorage('guest'), 'guest denied');
@@ -66,6 +72,9 @@ const sources = Object.fromEntries(['engagement', 'engagement-storage'].map(name
       saved = await store.load();
       check(saved.sessions.length === 1 && saved.events.length === 4, 'failed transaction rolls back summary and events');
       await store.saveSession(accumulator.end(92000));
+      check(eventWrites.filter(id => id === 'playback:s1:started').length === 1, 'checkpoints must not rewrite start events');
+      check(eventWrites.filter(id => id === 'playback:s1:completed').length === 1, 'checkpoints must not rewrite completion events');
+      IDBObjectStore.prototype.put = originalPut;
       return { count: saved.events.length };
     });
     if (result.count !== 4) throw new Error('Unexpected event count');

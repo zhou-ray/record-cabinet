@@ -86,7 +86,12 @@ export function createEngagementStorage(userId: string, factory: IDBFactory = in
                 || previous.covered.some(([a, b]) => !session.covered.some(([start, end]) => start <= a && end >= b))) throw new Error("Engagement checkpoint regressed.");
             }
             store.put(session);
-            for (const event of sessionEvents(session)) tx.objectStore("events").put(event);
+            // Checkpoints update the summary, not historical events. In particular,
+            // do not rewrite the play-start row while the listener browses sleeves.
+            for (const event of sessionEvents(session)) {
+              if ((event.type === "album_play_started" && !previous)
+                || (event.type === "album_completed" && previous?.completedAt == null)) tx.objectStore("events").put(event);
+            }
           } catch (error) { fail(error); }
         };
         return () => undefined;

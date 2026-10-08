@@ -79,7 +79,7 @@ The previous foundation remains in `app/lib/engagement.ts` and `tests/engagement
 ## Tests/checks run
 
 - `npm run lint` — PASS.
-- `npm test` — PASS: 228 tests, 0 failures, including the original suites, consumption tests, and six runtime-coordinator tests.
+- `npm test` — PASS: 229 tests, 0 failures, including the original suites, consumption tests, and six runtime-coordinator tests.
 - `NEXT_PUBLIC_ENGAGEMENT_ENABLED=true npm run build -- --webpack` — PASS, including TypeScript validation.
 - Default-off `npm run build -- --webpack` — PASS; authenticated desktop/mobile checks confirm it creates no engagement database or collection notice.
 - `scripts/engagement-integration-smoke.cjs` with mocked Spotify + real account-scoped IndexedDB — PASS at 390px/1400px: pointer and keyboard inspection, failed-play suppression, confirmed start, one completion at 75%, native cross-tab lock exclusion/release, settings navigation, reload recovery without synthetic events, signed-in demo exclusion, and existing account removal clearing history.
@@ -119,3 +119,16 @@ STOP. When explicitly authorized, work on **Milestone 2 — Privacy Controls and
 - Previous committed foundation: `b693404` (`feat: add engagement storage and consumption foundation`).
 - The commit containing this completed handoff is titled `feat: add album engagement tracking`; its hash is available via `git log -1`.
 - Neither this milestone nor the foundation has been pushed or deployed by this session.
+
+
+## Milestone 1 correction — browsing during playback (2026-10-08)
+
+The reported symptom was new playback-start entries while browsing, without an audio change. Inspection already uses the browsed sleeve identity and the player observes its own selected playback album. A two-album app regression did not reproduce a distinct playback session created by browsing alone.
+
+Confirmed storage issue: every checkpoint rewrote the same-ID start event (and, after completion, the completion event). `saveSession` now inserts the start only for a new session and completion only when it is first attained, while checkpoints update the session summary. No existing history is rewritten or deleted by this fix.
+
+Changed files: `app/lib/engagement-storage.ts`, `tests/engagement-tracker.test.mjs`, `scripts/engagement-storage-smoke.cjs`, `scripts/engagement-integration-smoke.cjs`, and this handoff.
+
+Verification: 229 Node tests passed; lint, enabled production build/typecheck, and diff check passed. Real IndexedDB instrumentation proves exactly one write for each playback event across checkpoints/finalization. Desktop/mobile integration now plays A while opening B, checks only an inspection for B, verifies every playback event/session still belongs to A, and verifies the player metadata stays on A. Existing integration assertions for failure, completion, ownership, reload, demo isolation, and deletion still pass.
+
+Last stable commit before correction: `a8bed23`. The correction commit is titled `fix: keep playback events stable while browsing`. No deployment or public tracking activation. Remain at Milestone 1 complete; the next milestone is still Milestone 2 only when explicitly authorized. If distinct new session IDs are reported again, capture their album IDs/timestamps and reproduce the exact input path; redundant writes alone do not explain distinct session IDs.
