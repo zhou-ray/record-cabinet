@@ -12,6 +12,8 @@ const origin = process.env.TEST_ORIGIN || 'http://127.0.0.1:3103';
    await page.route('https://**/*spotify*',route=>route.abort());
    await page.goto(origin);
    await page.getByRole('button',{name:'Try the demo',exact:true}).click();
+   // Reload the original 15-record fixture; the public demo now expands to 60.
+   await page.reload();
    await page.getByRole('button',{name:'Open All records, 15 records',exact:true}).click();
    const surface=page.locator('[class*=touchSurface]');
    const number=async()=>parseInt(await page.locator('[class*=recordNumber]').innerText(),10);

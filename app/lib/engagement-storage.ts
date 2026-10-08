@@ -36,6 +36,24 @@ export function createEngagementStorage(userId: string, factory: IDBFactory = in
     });
   }
   return {
+    clear(): Promise<void> {
+      return transaction("readwrite", tx => { tx.objectStore("events").clear(); tx.objectStore("sessions").clear(); return () => undefined; });
+    },
+    /** Keep one year, at most 10,000 events and 2,000 sessions per device/account. */
+    prune(now: number): Promise<void> {
+      return transaction("readwrite", tx => {
+        for (const [name, limit] of [["events", 10000], ["sessions", 2000]] as const) {
+          const store = tx.objectStore(name), request = store.getAll();
+          request.onsuccess = () => {
+            const rows = request.result as (EngagementEvent | PlaybackSession)[];
+            const timestamp = (row: EngagementEvent | PlaybackSession) => "timestamp" in row ? row.timestamp : row.updatedAt;
+            rows.sort((a, b) => timestamp(b) - timestamp(a));
+            for (const [index, row] of rows.entries()) if (index >= limit || timestamp(row) < now - 365 * 86400000) store.delete(row.id);
+          };
+        }
+        return () => undefined;
+      });
+    },
     async recordInspection(value: Inspection): Promise<void> {
       if (value.userId !== userId || value.type !== "album_inspected") throw new Error("Invalid inspection scope.");
       const event = inspection(value.id, userId, value.albumId, value.timestamp);

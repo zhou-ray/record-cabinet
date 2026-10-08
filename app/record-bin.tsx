@@ -18,6 +18,7 @@ import { shouldReturnRecord } from "./lib/bin-organization";
 import { RECORD_STEP as STEP, recordReleaseTarget } from "./lib/bin-gesture";
 import GenreEditor from "./genre-editor";
 import SpotifyPlayer from "./spotify-player";
+import { useEngagement } from "./use-engagement";
 import { useSpotifyPlayer } from "./use-spotify-player";
 import { usePlayer } from "./use-player";
 import styles from "./record-bin.module.css";
@@ -180,14 +181,16 @@ export default function RecordBin({ collection, genreEditing, onGenreUpdate }: {
   const gesture = useRef<{ id: number; x: number; y: number; start: number; lastY: number; time: number; velocity: number; moved: boolean; pulled: boolean } | null>(null);
   const suppressClick = useRef(false);
   const album = albums[index];
+  const engagement = useEngagement();
+  const inspectionPending = useRef<{ id: string; timestamp: number; albumId: string } | null>(null);
   const player = usePlayer();
-  const spotifyPlayer = useSpotifyPlayer(() => player.stop());
+  const spotifyPlayer = useSpotifyPlayer(() => player.stop(), engagement.sink);
   const [preferLocal, setPreferLocal] = useState(false);
   const [preparingAlbum, setPreparingAlbum] = useState(false);
   const [albumMessage, setAlbumMessage] = useState("");
   const preparation = useRef<AbortController | null>(null);
   useEffect(() => () => preparation.current?.abort(), []);
-  function cancelPreparation() { preparation.current?.abort(); preparation.current = null; setPreparingAlbum(false); setAlbumMessage(""); }
+  function cancelPreparation() { inspectionPending.current = null; preparation.current?.abort(); preparation.current = null; setPreparingAlbum(false); setAlbumMessage(""); }
 
   const hasRecord = preferLocal ? !!player.album : !!spotifyPlayer.album;
   const turntable = useRef<HTMLElement>(null);
@@ -301,10 +304,23 @@ export default function RecordBin({ collection, genreEditing, onGenreUpdate }: {
     setFlipPhase("lowering");
   }
 
+  function selectSleeve(timestamp: number) {
+    inspectionPending.current = engagement.sink ? { id: crypto.randomUUID(), timestamp, albumId: album.id } : null;
+    setFlipped(false); setPulled(true); setFlipPhase("lifting");
+  }
+  function captureInspection(ready: Album) {
+    const pending = inspectionPending.current;
+    if (!pending) return;
+    // Unresolved export albums get the same deliberate interaction after hydration.
+    if (ready.playback.kind === "spotify-pending") return;
+    inspectionPending.current = null;
+    engagement.inspect(ready, pending.id, pending.timestamp);
+  }
   function finishLift() {
     if (flipPhase === "lifting") {
       setFlipped(true);
       setFlipPhase("turning");
+      captureInspection(album);
       void loadSleeveTracks();
     } else if (flipPhase === "lowering") {
       setPulled(false);
@@ -333,6 +349,7 @@ export default function RecordBin({ collection, genreEditing, onGenreUpdate }: {
       controller.signal.throwIfAborted();
       const ready = await storage.saveAlbumDetails(album, await storage.prepareAlbumGenres(loaded));
       controller.signal.throwIfAborted();
+      if (inspectionPending.current?.albumId === album.id) captureInspection(ready);
       onGenreUpdate([ready]); setAlbumMessage("");
     } catch (error) {
       if (!controller.signal.aborted) setAlbumMessage(error instanceof Error ? error.message : "The track list could not load. Your record is saved; try again later.");
@@ -367,7 +384,7 @@ export default function RecordBin({ collection, genreEditing, onGenreUpdate }: {
       event.preventDefault();
       if (event.repeat || flipPhase !== "idle") return;
       if (pulled) returnRecord();
-      else { position.jump(settledPosition.current); setFlipped(false); setPulled(true); setFlipPhase("lifting"); }
+      else { position.jump(settledPosition.current); selectSleeve(performance.timeOrigin + event.timeStamp); }
     } else if (event.key === "Escape" && pulled) {
       event.preventDefault(); returnRecord();
     }
@@ -476,7 +493,7 @@ export default function RecordBin({ collection, genreEditing, onGenreUpdate }: {
           {[...new Set([...Array.from({ length: albums.length > 1 ? 8 : albums.length }, (_, offset) => sleeveIndex - Math.min(2, albums.length - 1) + offset), ...dividers.filter(section => section.start > wrap(sleeveIndex)).slice(0, 2).flatMap(section => { const start = sleeveIndex - wrap(sleeveIndex) + section.start; return [start, start + 1]; })])].map(i => { const item = albums[wrap(i)]; return <Sleeve key={`${item.id}:${i}`} album={item} index={i} position={sleevePosition} stackPosition={position} returning={returningRecords} reduced={reduced} pulled={pulled && i === Math.round(position.get())} raised={pulled && flipPhase !== "lowering" && i === Math.round(position.get())} onLiftComplete={() => { if (pulled && i === Math.round(position.get())) finishLift(); }} flipped={pulled && flipped && i === Math.round(position.get())} onFlip={flipSleeve} onFlipComplete={() => { if (pulled && i === Math.round(position.get())) { if (flipPhase === "turning") setFlipPhase("idle"); else if (flipPhase === "returning-front") finishReturn(); } }} />; })}
           <motion.button ref={coverButton} style={{ zIndex: pulled ? 60 : 40 }} animate={{ y: pulled && flipPhase !== "lowering" ? -185 : 0 }} transition={reduced ? { duration: 0 } : flipPhase === "lowering" ? { duration: 0.32, ease: "easeInOut" } : { type: "spring", stiffness: 260, damping: 25 }} className={styles.touchSurface} aria-label={`${pulled ? flipped ? "Show front cover of" : "Show back cover and tracks of" : "Show back cover and tracks of"} ${album.title} by ${album.artist}`} aria-expanded={pulled} aria-controls="album-details" aria-describedby="gesture-help"
             onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={(e) => pointerEnd(e)} onPointerCancel={(e) => pointerEnd(e, true)} onLostPointerCapture={(e) => pointerEnd(e, true)}
-            onClick={() => { if (!suppressClick.current) { settle(Math.round(position.get())); if (pulled) flipSleeve(); else { setFlipped(false); setPulled(true); setFlipPhase("lifting"); } } suppressClick.current = false; }}
+            onClick={() => { if (!suppressClick.current) { settle(Math.round(position.get())); if (pulled) flipSleeve(); else { selectSleeve(Date.now()); } } suppressClick.current = false; }}
             onKeyDown={(e) => {
 
               if (e.key === "Escape" || (pulled && e.key === "ArrowDown")) { e.preventDefault(); returnRecord(); return; }

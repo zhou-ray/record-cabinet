@@ -1312,3 +1312,14 @@ Use a separate native IndexedDB database `record-cabinet-engagement:<accountHash
 Completion uses unique verified coverage / frozen available album duration, with total consumed seconds retained separately. Pauses and repeated sections do not inflate unique coverage. Monotonic observation intervals over 30 seconds, seek jumps, unmatched observations, and explicit continuity interruptions earn no consumption credit. Reload recovers saved totals but not an unobserved time interval. The adapter must start only after confirmed playback, interrupt on seeking/uncertainty, and supply observations plus bounded periodic checkpoints. A configured 15-second checkpoint interval has no runtime scheduler yet.
 
 Storage performs atomic session/event commits, whitelists fields, rejects account mismatches, deduplicates stable IDs, and prevents stale checkpoint regression. These safeguards do not constitute a multi-tab playback ownership protocol or a retention policy; both remain required before enabling instrumentation. No raw SDK payloads, OAuth credentials, recommendation scoring, discovery UI, export/reset controls, or collection-enable flag were added at this boundary.
+
+
+## Milestone 1 integration decision record
+
+Instrumentation is connected behind the explicit build-time `NEXT_PUBLIC_ENGAGEMENT_ENABLED=true` switch (default false). Deliberate sleeve opening records one canonical inspection; unresolved export identity is deferred to successful details hydration. Confirmed SDK state, not optimistic UI, feeds the accumulator. SDK-local state is sampled at the shared 15-second checkpoint interval, without Web API polling.
+
+The runtime coordinator uses an account/origin Web Lock to avoid competing playback owners in tabs, bounded retry queues, and conservative interruption at seeks/errors/visibility changes. It retains a session through pause/resume and settings navigation. Reload preserves saved summaries without crediting downtime; a new explicit play starts a new session. Demo/manual/guest activity is excluded. Unsupported Web Locks suppress playback collection rather than risking duplicates.
+
+History remains local. Retention runs on activation/hourly (one year; up to 10,000 events and 2,000 sessions at maintenance). Existing account removal includes history and drains active writes; dedicated history-only reset/export is reserved for Milestone 2. Enabled test builds explain local collection. Public activation/provider review is not part of this rollout and the production flag remains off.
+
+See the current progress document for verified behavior and limitations, particularly conservative undercounting, canonical identity failures, retention boundaries, saved-membership eligibility, and lack of cross-device tracking synchronization.

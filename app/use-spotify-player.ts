@@ -1,4 +1,6 @@
 "use client";
+import { ENGAGEMENT } from "./lib/engagement";
+import type { EngagementSink } from "./lib/engagement-tracker";
 import { recordPlaybackEvent } from "./lib/beta-diagnostics";
 import { useAccount } from "./account-context";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
@@ -10,7 +12,7 @@ import { createAlbumStop } from "./lib/album-stop";
 import { playbackPosition } from "./lib/turntable";
 import { pausePlayer, playerDeadline } from "./lib/pause-player";
 
-export function useSpotifyPlayer(beforePlay?: () => void) {
+export function useSpotifyPlayer(beforePlay?: () => void, engagement?: EngagementSink) {
   const { apiFetch } = useAccount();
   const [album, setAlbum] = useState<Album | null>(null);
   const selected = useRef<Album | null>(null);
@@ -38,12 +40,13 @@ export function useSpotifyPlayer(beforePlay?: () => void) {
   const queuedCue = useRef<number | null>(null);
   const pausedUntil = useRef(0);
   const observationVersion = useRef(0);
-  useEffect(() => () => { recordPlaybackEvent("player-unmounted"); connectionGeneration.current++; albumStop.current?.reset(null); lifecycle.current?.abort(); sdk.current?.player.disconnect(); sdk.current = null; connection.current = null; }, []);
+  useEffect(() => () => { engagement?.end(); recordPlaybackEvent("player-unmounted"); connectionGeneration.current++; albumStop.current?.reset(null); lifecycle.current?.abort(); sdk.current?.player.disconnect(); sdk.current = null; connection.current = null; }, [engagement]);
   function observe(value: BrowserPlayback | null, checkEnd = true) {
     observationVersion.current++;
-    if (preparing.current) return;
+    if (preparing.current) { engagement?.interrupt(); return; }
     if (value && !value.paused && Date.now() < pausedUntil.current) return;
     const current = selected.current;
+    if (pendingSeek.current) engagement?.interrupt();
     if (pendingSeek.current && current && value) {
       const index = playbackTrackIndex(current, value);
       const uri = index >= 0 ? current.tracks[index].id.replace(/^spotify:(?!track:)/, "spotify:track:") : null;
@@ -57,6 +60,7 @@ export function useSpotifyPlayer(beforePlay?: () => void) {
       // A genuine playing event must not remain trapped behind an old end latch.
       completed.current = false; setEnded(false); albumStop.current?.reset(current); setNotice("");
     }
+    if (current) engagement?.observe(current, value);
     if (checkEnd) albumStop.current?.observe(value);
     if (completed.current) return;
     if (!value || !current) { setState(previous => previous ? { ...previous, playing: false } : null); return; }
@@ -85,7 +89,7 @@ export function useSpotifyPlayer(beforePlay?: () => void) {
       if (lifecycle.current?.signal.aborted || sdk.current !== device || inFlight.current || version !== observationVersion.current) return;
       // A failed background read says nothing about whether audio is playing.
       // Keep the SDK and transport state; later SDK events/focus checks recover it.
-      recordPlaybackEvent("status-timeout");
+      engagement?.interrupt(); recordPlaybackEvent("status-timeout");
       setNotice("Playback status could not refresh. Your record has not been stopped.");
     }
   });
@@ -101,14 +105,29 @@ export function useSpotifyPlayer(beforePlay?: () => void) {
     document.addEventListener("visibilitychange", refresh);
     return () => { window.removeEventListener("focus", refresh); window.removeEventListener("online", refresh); document.removeEventListener("visibilitychange", refresh); };
   }, []);
+  const readingEngagement = useRef(false);
+  const sampleEngagement = useEffectEvent(async () => {
+    const device = sdk.current, current = selected.current, version = observationVersion.current;
+    if (!engagement || !device || !current || preparing.current || inFlight.current || pendingSeek.current || readingEngagement.current) return;
+    readingEngagement.current = true;
+    try {
+      const value = await playerDeadline(device.player.getCurrentState());
+      if (device === sdk.current && current === selected.current && version === observationVersion.current && !inFlight.current && !preparing.current && !pendingSeek.current) engagement.observe(current, value);
+    } catch { engagement.interrupt(); } finally { readingEngagement.current = false; }
+  });
+  useEffect(() => {
+    if (!engagement) return;
+    const timer = setInterval(() => { void sampleEngagement(); }, ENGAGEMENT.checkpointMs);
+    return () => clearInterval(timer);
+  }, [engagement]);
   async function browser() {
     if (sdk.current) return sdk.current;
     if (!connection.current) {
       if (!lifecycle.current || lifecycle.current.signal.aborted) lifecycle.current = new AbortController();
       const generation = ++connectionGeneration.current;
-      connection.current = connectBrowserPlayer(value => { if (generation === connectionGeneration.current) observe(value); }, (message, needsReconnect, disconnected) => { if (generation !== connectionGeneration.current) return; recordPlaybackEvent(disconnected ? "device-lost" : "sdk-error"); playbackErrors.current++; albumStop.current?.cancel(); setError(message); setState(current => current ? { ...current, playing: false } : current); if (needsReconnect) setReconnect(true); if (disconnected) { connectionGeneration.current++; sdk.current?.player.disconnect(); sdk.current = null; connection.current = null; setState(null); } }, lifecycle.current.signal, apiFetch, volumeRef.current).then(value => { if (generation !== connectionGeneration.current) { value.player.disconnect(); throw new Error("The browser player disconnected while connecting. Press Play to try again."); } sdk.current = value;
+      connection.current = connectBrowserPlayer(value => { if (generation === connectionGeneration.current) observe(value); }, (message, needsReconnect, disconnected) => { if (generation !== connectionGeneration.current) return; engagement?.interrupt(); recordPlaybackEvent(disconnected ? "device-lost" : "sdk-error"); playbackErrors.current++; albumStop.current?.cancel(); setError(message); setState(current => current ? { ...current, playing: false } : current); if (needsReconnect) setReconnect(true); if (disconnected) { connectionGeneration.current++; sdk.current?.player.disconnect(); sdk.current = null; connection.current = null; setState(null); } }, lifecycle.current.signal, apiFetch, volumeRef.current).then(value => { if (generation !== connectionGeneration.current) { value.player.disconnect(); throw new Error("The browser player disconnected while connecting. Press Play to try again."); } sdk.current = value;
         albumStop.current = createAlbumStop(() => {
-          completed.current = true; setEnded(true); queuedCue.current = null;
+          engagement?.end(); completed.current = true; setEnded(true); queuedCue.current = null;
           setPosition(selected.current ? albumDuration(selected.current) : 0); setUpdatedAt(Date.now());
           setState(current => current ? { ...current, playing: false } : current);
           setNotice("The record has reached its end. Choose a record, or play this one again.");
@@ -207,18 +226,21 @@ export function useSpotifyPlayer(beforePlay?: () => void) {
     recordPlaybackEvent("starting");
     if (next.playback.kind !== "spotify" || !next.tracks.length || inFlight.current || Date.now() < retryAt) return false;
     if (albumDuration(next) <= 0) { setError("Spotify has no playable tracks on this album for your account right now. Choose another record."); return false; }
+    engagement?.begin(next);
     pausedUntil.current = 0;
     albumStop.current?.reset(null); completed.current = false; setEnded(false);
     pendingSeek.current = null;
     selected.current = next; setAlbum(next); queuedCue.current = null;
     setState(null); setPosition(0); setUpdatedAt(Date.now()); preparing.current = true;
     void sdk.current?.player.activateElement().catch(() => {});
-    try { return await run(async () => {
-      beforePlay?.();
-      await reconnectRecord(next, 0);
-    }); } finally { preparing.current = false; }
+    try {
+      const succeeded = await run(async () => { beforePlay?.(); await reconnectRecord(next, 0); });
+      if (!succeeded) engagement?.end();
+      return succeeded;
+    } finally { preparing.current = false; }
   }
   async function pause() {
+    engagement?.interrupt();
     recordPlaybackEvent("pause-request");
     return run(async () => {
       const device = await browser();
@@ -237,6 +259,7 @@ export function useSpotifyPlayer(beforePlay?: () => void) {
       if (sdk.current) await playerDeadline(sdk.current.player.pause());
       albumStop.current?.reset(null); completed.current = false; setEnded(false);
       pendingSeek.current = null;
+      engagement?.end();
       selected.current = null; queuedCue.current = null;
       setAlbum(null); setState(null); setPosition(0); setUpdatedAt(0);
     }, true);
@@ -246,6 +269,7 @@ export function useSpotifyPlayer(beforePlay?: () => void) {
     void sdk.current?.player.activateElement().catch(() => {});
     return run(async () => {
       pausedUntil.current = 0;
+      if (selected.current) engagement?.resume(selected.current);
       beforePlay?.();
       if ((!sdk.current || !state) && selected.current) {
         preparing.current = true;
@@ -260,6 +284,7 @@ export function useSpotifyPlayer(beforePlay?: () => void) {
   }
   async function refresh() { return run(async () => { const device = await browser(); observe(await playerDeadline(device.player.getCurrentState())); }, true); }
   async function seek(seconds: number) {
+    engagement?.interrupt();
     recordPlaybackEvent("seek-request");
     if (!album || !Number.isFinite(seconds)) return;
     const cue = albumCue(album, seconds);
@@ -295,6 +320,7 @@ export function useSpotifyPlayer(beforePlay?: () => void) {
   async function restart() {
     const current = selected.current;
     if (!current) return false;
+    engagement?.begin(current);
     if (!sdk.current || !state) return start(current);
     void sdk.current.player.activateElement().catch(() => {});
     return run(async () => {

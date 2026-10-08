@@ -75,6 +75,17 @@ const sources = Object.fromEntries(['engagement', 'engagement-storage'].map(name
       const saved = await createEngagementStorage('a'.repeat(64)).load();
       if (saved.sessions.length !== 1 || saved.sessions[0].listenedSeconds !== 90 || saved.sessions[0].endedAt !== 92000 || saved.events.length !== 4) throw new Error('Reload recovery failed');
     });
+    await page.evaluate(async () => {
+      const { createEngagementStorage } = window.engagementTestModules['engagement-storage'];
+      const { inspection } = window.engagementTestModules.engagement;
+      const user = 'a'.repeat(64), other = 'b'.repeat(64), first = createEngagementStorage(user), second = createEngagementStorage(other);
+      await second.recordInspection(inspection('retained', other, 'spotify:abc', Date.now()));
+      await first.prune(Date.now());
+      if ((await first.load()).events.length || (await first.load()).sessions.length) throw new Error('Old history was not pruned');
+      await first.recordInspection(inspection('new', user, 'spotify:abc', Date.now()));
+      await first.clear();
+      if ((await first.load()).events.length || (await second.load()).events.length !== 1) throw new Error('Account-scoped clear failed');
+    });
     console.log('PASS: real IndexedDB account isolation, idempotent/concurrent writes, stale checkpoint protection, atomic rollback, metadata exclusion, and reload recovery');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

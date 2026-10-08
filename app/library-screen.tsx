@@ -343,6 +343,7 @@ export default function LibraryScreen({ connected, demo, legacySession = false }
     }} />}
     <AccountTools connected={connected} disabled={!storageReady || saving || (!progress.complete && !error)} />
     <RequestUsagePanel />
+    {process.env.NEXT_PUBLIC_ENGAGEMENT_ENABLED === "true" && connected && <p className="library-storage-status">This test build keeps album browsing and listening history on this device for future discovery bins. It is not uploaded. Account and privacy can remove local data.</p>}
     <BetaTools connected={connected} storageReady={storageReady} storageError={!!storageError} importing={!progress.complete && !error} authError={authError} />
     <CollectionBackup albums={albums ?? []} disabled={!storageReady || saving || (!progress.complete && !error)} onRestore={next => { latestAlbums.current = next; setAlbums(next); setRestored(true); setShowDemo(false); }} />
     </div>

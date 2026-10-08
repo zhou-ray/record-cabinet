@@ -6,6 +6,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 import { NextResponse } from 'next/server.js';
 function load(file, dependencies = {}, fetch = () => { throw new Error('Live requests forbidden in tests'); }, window) {
+  if (file === 'app/use-spotify-player.ts') dependencies['./lib/engagement'] = load('app/lib/engagement.ts');
   if (file === 'app/use-spotify-player.ts') dependencies['./lib/beta-diagnostics'] = { recordPlaybackEvent() {} };
   if (file === 'app/use-spotify-player.ts') dependencies['./account-context'] = { useAccount: () => ({ apiFetch: fetch }) };
   const output = ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
