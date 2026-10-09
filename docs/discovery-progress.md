@@ -154,3 +154,25 @@ Known issue: no test has reproduced a distinct new playback session created by s
 Exact next step: retest the same play-A/open-B sequence on this local build. Compare the set of start-event session IDs before and after opening B, alongside the new inspection. If a distinct start ID is added, capture the explicit start/resume invocation and SDK observations in that reproduction before changing session semantics. Do not begin Milestone 2 as part of this bug investigation.
 
 Last stable commit before this patch: `c5f6dae` (`fix: keep playback events stable while browsing`). This patch's commit is titled `fix: drain inspections queued during playback saves`.
+
+## Milestone 1 investigation — readable tracking trace (2026-10-09)
+
+User still reports the same symptom after the queue correction. Do not treat that correction as resolution. Inspection/session separation continues to pass automated tests, but the user's exact failure has not been reproduced. The local port-3000 server was checked and is `next dev`, not an old `next start` process; this does not prove which URL/build the user is viewing.
+
+Added a read-only **Tracking debug** panel near the bottom of Library & settings, gated behind the existing enabled-tracking build flag and authenticated account. It resolves stored album IDs to library titles, sorts the latest 40 persisted events newest-first, and shows session/inspection IDs. A bounded, account-scoped, memory-only trace shows sleeve opens, inspection requests, start/resume requests, confirmed session creation and tracking end, plus the most recent selected-vs-Spotify-reported playback album. The trace clears on reload/lifecycle cleanup or account removal; nothing is uploaded or included in general problem-report diagnostics. The panel makes no Spotify requests, changes no existing history, and provides no reset or general data-export feature. This is Milestone 1 troubleshooting, not Milestone 2 implementation.
+
+Files changed:
+- `app/lib/engagement-debug.ts`: bounded test-only trace and latest observation.
+- `app/engagement-debug.tsx`: manually refreshed, title-resolved read-only history panel.
+- `app/use-engagement.ts`, `app/lib/engagement-tracker.ts`, `app/record-bin.tsx`: trace existing transitions without changing session semantics.
+- `app/library-screen.tsx`: test-build/settings-only panel entry.
+- `scripts/engagement-integration-smoke.cjs`: checks human-readable inspection/playback/trace identities, unchanged session count when viewing history, absence of account ID in report, and disabled-build exclusion.
+- This handoff.
+
+Checks: 230 Node tests PASS; lint PASS; tracking-enabled and tracking-disabled production builds/typechecks PASS; diff check PASS. Desktop/mobile real-IndexedDB + mocked-Spotify panel checks passed with normal motion before the additional sleeve-open marker and with reduced motion on the final build (including that marker). Disabled-build browser checks passed at both widths: no panel and no engagement database. No live Spotify playback used, no push/deploy, no public activation.
+
+Known issue: root cause of a distinct playback start allegedly triggered by browsing remains unconfirmed. Do not make further speculative changes to session boundaries. The test view is a manually refreshed snapshot; action trace covers only the current page load, while saved events survive reload.
+
+Exact next step: refresh the user's existing local app once to load the tracing code; play A and open B, then visit Library & settings → Tracking debug and capture the text WITHOUT reloading again. Compare sleeve/inspection interaction IDs, Start requested / Session confirmed entries, saved session IDs and reported Spotify album. This should distinguish a missing inspection, delayed confirmation, explicit start path, or a display-order misunderstanding. Remain on Milestone 1 until this report is explained; do not start a later milestone.
+
+Last stable commit before this diagnostic patch: `7b4ce66` (`fix: drain inspections queued during playback saves`). Diagnostic commit title: `chore: add readable local tracking diagnostics`.

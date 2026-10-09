@@ -16,6 +16,7 @@ type Dependencies = {
   /** Exclusive origin/account lock; null means another tab owns playback tracking. */
   acquire: () => Promise<(() => void) | null>;
   error: () => void;
+  sessionStarted?: (session: PlaybackSession) => void;
 };
 
 /** Thin runtime coordinator; playback must never wait for storage or ownership. */
@@ -88,6 +89,7 @@ export function createEngagementTracker(deps: Dependencies) {
       if (!accumulator) {
         if (state.paused) return;
         accumulator = createPlaybackAccumulator(startPlaybackSession(deps.id(), deps.userId, selected, duration, deps.now()));
+        deps.sessionStarted?.(accumulator.snapshot());
       }
       if (duration !== accumulator.snapshot().albumDurationSeconds) { accumulator.interrupt(); return; }
       const before = accumulator.snapshot();

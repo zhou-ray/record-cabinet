@@ -10,6 +10,7 @@ import RequestUsagePanel from "./request-usage";
 import ListeningGuide from "./listening-guide";
 import FirstVisit from "./first-visit";
 import BetaTools from "./beta-tools";
+import EngagementDebug from "./engagement-debug";
 import { recordDiagnostic, recordPlaybackEvent } from "./lib/beta-diagnostics";
 import { spotifySignInMessage } from "./lib/spotify-sign-in-message";
 import CloudLibrarySync from "./cloud-library-sync";
@@ -51,7 +52,7 @@ export default function LibraryScreen({ connected, demo, legacySession = false }
   }, [settings]);
   const [authError] = useState(params.get("spotify") ?? (legacySession ? "reconnect" : ""));
   const mobileSetup = authError === "mobile-setup";
-  const { storage: libraryStorage, apiFetch } = useAccount();
+  const { accountId, storage: libraryStorage, apiFetch } = useAccount();
   const [albums, setAlbums] = useState<Album[] | null>(connected ? [] : demo);
   const [error, setError] = useState(spotifySignInMessage(authError));
   useEffect(() => { if (/\bReference: [a-f0-9]{8}\b/i.test(error)) recordDiagnostic("import", 0, error); }, [error]);
@@ -345,6 +346,7 @@ export default function LibraryScreen({ connected, demo, legacySession = false }
     <RequestUsagePanel />
     {process.env.NEXT_PUBLIC_ENGAGEMENT_ENABLED === "true" && connected && <p className="library-storage-status">This test build keeps album browsing and listening history on this device for future discovery bins. It is not uploaded. Account and privacy can remove local data.</p>}
     <BetaTools connected={connected} storageReady={storageReady} storageError={!!storageError} importing={!progress.complete && !error} authError={authError} />
+    {settings && process.env.NEXT_PUBLIC_ENGAGEMENT_ENABLED === "true" && connected && <EngagementDebug key={accountId} albums={albums ?? []} />}
     <CollectionBackup albums={albums ?? []} disabled={!storageReady || saving || (!progress.complete && !error)} onRestore={next => { latestAlbums.current = next; setAlbums(next); setRestored(true); setShowDemo(false); }} />
     </div>
   </>;

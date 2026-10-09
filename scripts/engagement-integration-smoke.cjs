@@ -54,6 +54,7 @@ function cookie() {
    await page.goto(origin + '/settings');
    await page.waitForTimeout(400);
    if (process.env.EXPECT_DISABLED === 'true') {
+    assert.equal(await page.getByRole('button', { name: 'Tracking debug', exact: true }).count(), 0);
     assert.equal(await page.getByText(/This test build keeps album browsing/).count(), 0);
     assert.equal(await page.evaluate(async () => (await indexedDB.databases()).some(db => db.name?.startsWith('record-cabinet-engagement:'))), false);
     assert.deepEqual(errors, []); await context.close();
@@ -138,6 +139,16 @@ function cookie() {
    assert.equal(await canOwn(), true, 'pause releases ownership');
    await otherTab.close();
    await page.getByRole('link', { name: 'Library & settings', exact: true }).click();
+   await page.getByRole('button', { name: 'Tracking debug', exact: true }).click();
+   await page.waitForFunction(() => document.querySelector('#tracking-history')?.value.includes('SAVED EVENTS'));
+   const tracking = await page.getByLabel('Tracking history', { exact: true }).inputValue();
+   assert.match(tracking, /Inspected · Z Browsed Record/);
+   assert.match(tracking, /Playback started · Test Record/);
+   assert.match(tracking, /Session confirmed · Test Record/);
+   assert.match(tracking, /Inspection requested · Z Browsed Record/);
+   assert.match(tracking, /Sleeve opened · Z Browsed Record/);
+   assert.equal(tracking.includes(account), false, 'debug view excludes the account identifier');
+   assert.equal((await read()).sessions.length, 1, 'reading history does not restart tracking');
    await page.getByRole('link', { name: '← Back to records', exact: true }).click();
    assert.equal((await read()).sessions.length, 1);
    await page.reload();

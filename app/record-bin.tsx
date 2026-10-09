@@ -19,6 +19,7 @@ import { RECORD_STEP as STEP, recordReleaseTarget } from "./lib/bin-gesture";
 import GenreEditor from "./genre-editor";
 import SpotifyPlayer from "./spotify-player";
 import { useEngagement } from "./use-engagement";
+import { traceEngagement } from "./lib/engagement-debug";
 import { useSpotifyPlayer } from "./use-spotify-player";
 import { usePlayer } from "./use-player";
 import styles from "./record-bin.module.css";
@@ -306,6 +307,7 @@ export default function RecordBin({ collection, genreEditing, onGenreUpdate }: {
 
   function selectSleeve(timestamp: number) {
     inspectionPending.current = engagement.sink ? { id: crypto.randomUUID(), timestamp, albumId: album.id } : null;
+    if (inspectionPending.current) traceEngagement(accountId, "Sleeve opened", album.id, inspectionPending.current.id);
     setFlipped(false); setPulled(true); setFlipPhase("lifting");
   }
   function captureInspection(ready: Album) {
