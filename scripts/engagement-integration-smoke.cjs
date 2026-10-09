@@ -13,7 +13,7 @@ function cookie() {
  const browser = await chromium.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: true });
  try {
   for (const width of [390, 1400]) {
-   const context = await browser.newContext({ viewport: { width, height: 1000 }, reducedMotion: 'reduce' });
+   const context = await browser.newContext({ viewport: { width, height: 1000 }, reducedMotion: process.env.REDUCED_MOTION === 'true' ? 'reduce' : 'no-preference' });
    await context.addCookies([{ name: 'rc_spotify', value: cookie(), url: origin }]);
    await context.route('**/api/library/sync', route => route.fulfill({ status: 503, json: { error: 'Test: cloud disabled' } }));
    await context.route('**/api/genres**', route => route.fulfill({ status: 503, json: { error: 'Test: genres disabled' } }));
@@ -99,6 +99,7 @@ function cookie() {
    await page.getByRole('button', { name: 'Pause record', exact: true }).waitFor();
    await page.evaluate(() => window.mockPlayer.emit(0)); await page.waitForTimeout(100);
    await page.evaluate(() => window.mockPlayer.emit(0)); await page.waitForTimeout(100);
+   const playingSession = (await read()).sessions[0].id;
    await page.locator('[class*=activeBack] [class*=backTitle]').click();
    await page.locator('#album-details').waitFor({ state: 'detached' });
    await surface.focus(); await page.keyboard.press('ArrowRight'); await page.waitForTimeout(100);
@@ -106,13 +107,23 @@ function cookie() {
    await page.getByRole('region', { name: 'Full track list for Z Browsed Record', exact: true }).waitFor();
    await page.waitForFunction(() => !document.querySelector('button[title="Play this album"]').disabled);
    assert.equal(await page.evaluate(() => navigator.mediaSession.metadata?.title), 'Test Record', 'turntable remains on the playing record');
+   for (let opening = 0; opening < 3; opening++) {
+    await page.locator('[class*=activeBack] [class*=backTitle]').click();
+    await page.locator('#album-details').waitFor({ state: 'detached' });
+    await surface.focus(); await page.keyboard.press('Enter');
+    await page.waitForFunction(() => !document.querySelector('button[title="Play this album"]').disabled);
+    await page.waitForTimeout(100);
+    const history = await read();
+    assert.equal(history.events.filter(e => e.type === 'album_inspected' && e.albumId === 'spotify:browsed').length, opening + 2);
+    assert.deepEqual(history.events.filter(e => e.type === 'album_play_started').map(e => e.sessionId), [playingSession], 'reopening sleeves cannot restart tracking of the playing record');
+   }
    for (let seconds = 15; seconds <= 75; seconds += 15) {
     await page.evaluate(seconds => { window.testElapsed = seconds * 1000; window.mockPlayer.emit(seconds); }, seconds);
     await page.waitForTimeout(60);
    }
    let saved = await read();
-   assert.equal(saved.events.filter(e => e.type === 'album_inspected').length, 3);
-   assert.equal(saved.events.filter(e => e.type === 'album_inspected' && e.albumId === 'spotify:browsed').length, 1);
+   assert.equal(saved.events.filter(e => e.type === 'album_inspected').length, 6);
+   assert.equal(saved.events.filter(e => e.type === 'album_inspected' && e.albumId === 'spotify:browsed').length, 4);
    assert.ok(saved.sessions.every(s => s.albumId === 'spotify:smoke'), 'listening belongs only to the playing album');
    assert.ok(saved.events.filter(e => e.type !== 'album_inspected').every(e => e.albumId === 'spotify:smoke'), 'browsing cannot generate play/completion events');
    assert.equal(saved.events.filter(e => e.type === 'album_play_started').length, 1);
@@ -131,7 +142,7 @@ function cookie() {
    assert.equal((await read()).sessions.length, 1);
    await page.reload();
    saved = await read();
-   assert.equal(saved.events.filter(e => e.type === 'album_inspected').length, 3, 'reload does not manufacture an inspection');
+   assert.equal(saved.events.filter(e => e.type === 'album_inspected').length, 6, 'reload does not manufacture an inspection');
    assert.equal(saved.sessions.length, 1, 'reload does not manufacture a start');
    assert.equal(saved.events.filter(e => e.type === 'album_completed').length, 1);
    await page.getByRole('link', { name: 'Library & settings', exact: true }).click();
@@ -141,7 +152,7 @@ function cookie() {
    await page.waitForFunction(() => !document.querySelector('button[title="Play this album"]').disabled);
    await page.getByRole('button', { name: /^Play .* by tapping the vinyl$/ }).click();
    await page.waitForTimeout(300);
-   assert.equal((await read()).events.filter(e => e.type === 'album_inspected').length, 3, 'signed-in demo excluded');
+   assert.equal((await read()).events.filter(e => e.type === 'album_inspected').length, 6, 'signed-in demo excluded');
    assert.equal((await read()).sessions.length, 1, 'local demo audio excluded');
    await page.getByRole('link', { name: 'Library & settings', exact: true }).click();
    await page.getByText('Account and privacy', { exact: true }).click();

@@ -104,3 +104,29 @@ test('inspecting another album during playback never changes the playback sessio
   assert.equal([...f.inspections.values()][0].albumId, browsed.id);
   await tracker.dispose();
 });
+
+test('inspection queued during a playback save is persisted without waiting for another checkpoint', async () => {
+  let finishSave;
+  const blocked = new Promise(resolve => { finishSave = resolve; });
+  const sessions = new Map(), inspections = [];
+  const tracker = createEngagementTracker({
+    userId: 'a'.repeat(64), now: () => 1000, monotonic: () => 0, id: () => 'playing-session',
+    acquire: async () => () => {}, error: () => assert.fail('unexpected storage error'),
+    store: {
+      async saveSession(value) { await blocked; sessions.set(value.id, value); },
+      async recordInspection(value) { inspections.push(value); },
+    },
+  });
+  tracker.begin(album); tracker.observe(album, state(0)); await tick();
+  tracker.observe(album, state(0));
+  const browsed = { ...album, id: 'spotify:browsed', playback: { kind: 'spotify', uri: 'spotify:album:browsed' } };
+  tracker.inspect(browsed, 'opened-sleeve');
+  const saving = tracker.flush();
+  finishSave(); await saving;
+  assert.equal(sessions.size, 1);
+  assert.equal(inspections.length, 1, 'opening the sleeve must not remain queued behind playback');
+  assert.equal(inspections[0].type, 'album_inspected');
+  assert.equal(inspections[0].albumId, browsed.id);
+  assert.equal([...sessions.values()][0].albumId, album.id);
+  await tracker.dispose();
+});

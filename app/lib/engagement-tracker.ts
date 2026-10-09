@@ -29,7 +29,10 @@ export function createEngagementTracker(deps: Dependencies) {
   function flush(): Promise<void> {
     if (writing) return writing;
     writing = (async () => {
-      for (const [key, value] of [...pending]) {
+      // Drain additions made while a write is in flight too. A snapshot leaves
+      // sleeve inspections waiting behind playback until the next timer tick.
+      while (pending.size) {
+        const [key, value] = pending.entries().next().value!;
         try {
           if ("type" in value) await deps.store.recordInspection(value); else await deps.store.saveSession(value);
           if (pending.get(key) === value) pending.delete(key);

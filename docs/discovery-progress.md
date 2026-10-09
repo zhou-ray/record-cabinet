@@ -132,3 +132,25 @@ Changed files: `app/lib/engagement-storage.ts`, `tests/engagement-tracker.test.m
 Verification: 229 Node tests passed; lint, enabled production build/typecheck, and diff check passed. Real IndexedDB instrumentation proves exactly one write for each playback event across checkpoints/finalization. Desktop/mobile integration now plays A while opening B, checks only an inspection for B, verifies every playback event/session still belongs to A, and verifies the player metadata stays on A. Existing integration assertions for failure, completion, ownership, reload, demo isolation, and deletion still pass.
 
 Last stable commit before correction: `a8bed23`. The correction commit is titled `fix: keep playback events stable while browsing`. No deployment or public tracking activation. Remain at Milestone 1 complete; the next milestone is still Milestone 2 only when explicitly authorized. If distinct new session IDs are reported again, capture their album IDs/timestamps and reproduce the exact input path; redundant writes alone do not explain distinct session IDs.
+
+## Milestone 1 follow-up — inspections queued behind playback (2026-10-09)
+
+User reports that opening a sleeve while A continues playing appears as a new playback entry for A. This remains a Milestone 1 investigation, not authorization for Milestone 2. The two previously supplied events have different session IDs and album IDs, but the remembered browsed album matches neither; they do not establish which action created either session.
+
+Confirmed and fixed a separate timing defect: `flush()` iterated a snapshot of pending writes. An inspection enqueued while a playback save was awaiting IndexedDB was left pending until a later flush (normally the 15-second timer). The playback entry could therefore be visible without the inspection. The writer now drains additions received during successful saves immediately, retaining the existing stop-on-error retry policy and per-ID checkpoint coalescing. No existing history is rewritten or cleared.
+
+Files changed: `app/lib/engagement-tracker.ts`, `tests/engagement-tracker.test.mjs`, `scripts/engagement-integration-smoke.cjs`, and this document.
+
+Verification:
+- Deterministic blocked-playback-save regression FAILED before the fix (zero persisted inspections), PASSED after (one inspection for B, one session for A without another timer/checkpoint).
+- `npm test`: PASS, 230 tests.
+- `npm run lint`: PASS.
+- `NEXT_PUBLIC_ENGAGEMENT_ENABLED=true npm run build -- --webpack`: PASS, including TypeScript.
+- Mocked Spotify + real IndexedDB integration: PASS at 390px and 1400px, with both normal and reduced motion. Repeatedly reopening B adds one inspection per opening and preserves A's original playback session ID. Existing completion, failed-play, ownership, navigation, reload, demo exclusion, and deletion checks also pass.
+- `git diff --check`: PASS.
+
+Known issue: no test has reproduced a distinct new playback session created by sleeve inspection alone. This queue correction is not proof that the user's entire symptom is resolved. Playback-start persistence can also lag initial playback confirmation/ownership; no change to those semantics in this patch. Public collection remains disabled by default; no push/deploy.
+
+Exact next step: retest the same play-A/open-B sequence on this local build. Compare the set of start-event session IDs before and after opening B, alongside the new inspection. If a distinct start ID is added, capture the explicit start/resume invocation and SDK observations in that reproduction before changing session semantics. Do not begin Milestone 2 as part of this bug investigation.
+
+Last stable commit before this patch: `c5f6dae` (`fix: keep playback events stable while browsing`). This patch's commit is titled `fix: drain inspections queued during playback saves`.
