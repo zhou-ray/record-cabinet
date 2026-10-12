@@ -139,9 +139,13 @@ function cookie() {
    assert.equal(await canOwn(), true, 'pause releases ownership');
    await otherTab.close();
    await page.getByRole('link', { name: 'Library & settings', exact: true }).click();
+   assert.equal(await page.getByRole('button', { name: 'Tracking debug', exact: true }).isVisible(), false);
+   await page.getByText('Advanced & troubleshooting', { exact: true }).click();
    await page.getByRole('button', { name: 'Tracking debug', exact: true }).click();
    await page.waitForFunction(() => document.querySelector('#tracking-history')?.value.includes('SAVED EVENTS'));
    const tracking = await page.getByLabel('Tracking history', { exact: true }).inputValue();
+   assert.match(tracking, /Tracking debugger v2/);
+   assert.match(tracking, /Matched library track: spotify:track:track/);
    assert.match(tracking, /Inspected · Z Browsed Record/);
    assert.match(tracking, /Playback started · Test Record/);
    assert.match(tracking, /Session confirmed · Test Record/);
@@ -157,6 +161,7 @@ function cookie() {
    assert.equal(saved.sessions.length, 1, 'reload does not manufacture a start');
    assert.equal(saved.events.filter(e => e.type === 'album_completed').length, 1);
    await page.getByRole('link', { name: 'Library & settings', exact: true }).click();
+   await page.getByText('Advanced & troubleshooting', { exact: true }).click();
    await page.getByRole('button', { name: 'Listen to local demos', exact: true }).click();
    await page.getByRole('button', { name: 'Open All records, 60 records', exact: true }).click();
    await page.locator('[class*=touchSurface]').click();

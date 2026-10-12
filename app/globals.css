@@ -14,6 +14,17 @@ button:disabled { cursor: default; }
 .settings-heading h1 { font: 32px Georgia, serif; margin: 0 0 12px; }
 .settings-heading p { color: #59604d; font-size: 14px; }
 .settings-tools { padding-bottom: 32px; }
+.settings-section { max-width: 1000px; margin: 24px auto; padding: 20px 24px; border-top: 1px solid #d9d7cb; }
+.settings-section > h2 { margin: 0 0 16px; font: 24px Georgia, serif; }
+.settings-section > p { font-size: 14px; color: #59604d; line-height: 1.6; }
+.settings-section > .collection-tools, .settings-section > .library-connection, .settings-section > .import-options { padding-left: 0; padding-right: 0; }
+.settings-action { min-height: 44px; padding: 10px 14px; border: 1px solid #b7bba9; border-radius: 3px; cursor: pointer; }
+.settings-advanced { margin: 20px 0; border-top: 1px solid #d9d7cb; }
+.settings-advanced > summary, .import-more > summary { min-height: 44px; padding: 14px 0; cursor: pointer; font-size: 14px; }
+.import-more { width: 100%; }
+.import-more-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.import-more-controls input { width: 100%; min-width: 0; padding: 9px; border: 1px solid #a9ac9d; border-radius: 4px; }
+.import-more-controls label { flex-wrap: wrap; max-width: 100%; }
 ::selection { background: #e4b55e; color: #292e25; }
 .library-connection { width: min(100%, 1000px); margin: auto; padding: 10px 24px; display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 1px solid #d9d7cb; font-size: 11px; }
 .library-connection a, .library-connection button, .library-message button, .library-message a { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 12px; color: #343c2f; background: transparent; border: 1px solid #b8beaf; border-radius: 4px; cursor: pointer; text-decoration: none; }

@@ -310,6 +310,16 @@ export default function RecordBin({ collection, genreEditing, onGenreUpdate }: {
     if (inspectionPending.current) traceEngagement(accountId, "Sleeve opened", album.id, inspectionPending.current.id);
     setFlipped(false); setPulled(true); setFlipPhase("lifting");
   }
+  const openOrganization = useEffectEvent(() => {
+    backToShelf();
+    saveOrganization(systems, systemId || systems[0]?.id || "", "custom");
+    setEditorOpen(true);
+  });
+  useEffect(() => {
+    const open = () => openOrganization();
+    window.addEventListener("record-cabinet-organize", open);
+    return () => window.removeEventListener("record-cabinet-organize", open);
+  }, []);
   function captureInspection(ready: Album) {
     const pending = inspectionPending.current;
     if (!pending) return;

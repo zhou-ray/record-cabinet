@@ -4,6 +4,7 @@ import type { Album } from "./data/types";
 import { useAccount } from "./account-context";
 import { ENGAGEMENT, engagementAccount, engagementAlbumId } from "./lib/engagement";
 import { clearEngagementDebug, observeEngagementDebug, traceEngagement } from "./lib/engagement-debug";
+import { playbackTrackIndex } from "./lib/album-timeline";
 import { createEngagementStorage } from "./lib/engagement-storage";
 import { createEngagementTracker, type EngagementSink } from "./lib/engagement-tracker";
 import { recordPlaybackEvent } from "./lib/beta-diagnostics";
@@ -57,7 +58,12 @@ export function useEngagement() {
       resume: album => { traceEngagement(accountId, "Resume requested", engagementAlbumId(album)); tracker.current?.resume(album); },
       observe: (album, state) => {
         const uri = state?.track_window.current_track.album?.uri;
-        observeEngagementDebug(accountId, { selectedAlbum: engagementAlbumId(album), reportedAlbum: uri?.startsWith("spotify:album:") ? uri.replace("spotify:album:", "spotify:") : null, playing: !!state && !state.paused });
+        const track = state?.track_window.current_track;
+        const index = state ? playbackTrackIndex(album, state) : -1;
+        observeEngagementDebug(accountId, { selectedAlbum: engagementAlbumId(album), reportedAlbum: uri?.startsWith("spotify:album:") ? uri.replace("spotify:album:", "spotify:") : null, playing: !!state && !state.paused,
+          reportedTrack: track?.uri ?? null, linkedTrack: track?.linked_from?.uri ?? track?.linked_from_uri ?? null,
+          matchedTrack: index >= 0 ? album.tracks[index].id.replace(/^spotify:(?!track:)/, "spotify:track:") : null,
+          context: state?.context?.uri?.startsWith("spotify:album:") ? state.context.uri : null });
         tracker.current?.observe(album, state);
       },
       interrupt: () => tracker.current?.interrupt(), end: () => { traceEngagement(accountId, "Tracking ended", null); tracker.current?.end(); },

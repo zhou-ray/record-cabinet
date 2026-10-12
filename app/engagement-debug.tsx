@@ -27,7 +27,7 @@ export default function EngagementDebug({ albums }: { albums: Album[] }) {
       const time = (value: number) => new Date(value).toLocaleTimeString([], { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
       const labels = { album_inspected: "Inspected", album_play_started: "Playback started", album_completed: "Completed" };
       setReport([
-        `Tracking debugger v1 · captured ${time(Date.now())}`,
+        `Tracking debugger v2 · captured ${time(Date.now())}`,
         "Local snapshot; use Refresh tracking after browsing. No Spotify requests.",
         "",
         "LATEST SPOTIFY OBSERVATION",
@@ -35,6 +35,10 @@ export default function EngagementDebug({ albums }: { albums: Album[] }) {
           `${time(debug.observation.time)} · ${debug.observation.playing ? "Playing" : "Paused / unavailable"}`,
           `App playing selection: ${name(debug.observation.selectedAlbum)}`,
           `Spotify reported album: ${name(debug.observation.reportedAlbum)}`,
+          `Spotify track: ${debug.observation.reportedTrack ?? "None"}`,
+          `Linked original track: ${debug.observation.linkedTrack ?? "None"}`,
+          `Matched library track: ${debug.observation.matchedTrack ?? "No match"}`,
+          `Spotify album context: ${debug.observation.context ?? "Not reported"}`,
         ] : ["No playback observation since this page loaded."]),
         "",
         "SAVED EVENTS · newest first (latest 40)",

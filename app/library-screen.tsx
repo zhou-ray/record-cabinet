@@ -5,7 +5,6 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Album } from "./data/types";
 import { publicDemo } from "./data/public-demo";
-import SpotifyExportImport from "./spotify-export-import";
 import RequestUsagePanel from "./request-usage";
 import ListeningGuide from "./listening-guide";
 import FirstVisit from "./first-visit";
@@ -295,22 +294,20 @@ export default function LibraryScreen({ connected, demo, legacySession = false }
     </div>
     {!settings && genreActivity && <p className="library-storage-status" role="status">{genreActivity} <CabinetLink href="/settings">Genre progress</CabinetLink></p>}
     <div hidden={!settings} className="settings-tools">
-    <aside className="library-connection" aria-label="Spotify connection">
-      <span>{connected ? "Your Spotify collection" : albums?.some(album => album.source !== "mock") ? "Your saved collection · Spotify disconnected" : "Browsing the demo collection"}</span>
-      {connected ? <button disabled={saving || (!progress.complete && !error)} onClick={async () => { try { const response = await apiFetch("/api/spotify/logout", { method: "POST" }); if (response.ok) location.reload(); else setError("Sign-out could not complete. Reload and try again."); } catch { setError("Sign-out could not complete. Please try again."); } }}>Sign out</button> : <a href="/api/spotify/login">Connect Spotify ↗</a>}
-    </aside>
-    <SpotifyExportImport disabled={!storageReady || saving || (!progress.complete && !error)} onImported={records => { latestAlbums.current = records; setAlbums(records); setRestored(true); setShowDemo(false); }} />
+    <section className="settings-section" aria-labelledby="library-heading">
+    <h2 id="library-heading">Library</h2>
     {connected && <section className="import-options" aria-label="Import albums">
       <label>Import from <select value={selectedSource} disabled={previewing || running.current} onChange={event => { setSelectedSource(event.target.value); setPreview(null); }}><option value="saved">Saved albums</option><option value="liked">Liked Songs</option>{selectedSource.startsWith("playlist:") && !playlists.some(playlist => `playlist:${playlist.id}` === selectedSource) && <option value={selectedSource}>Previously selected playlist</option>}{playlists.map(playlist => <option key={playlist.id} value={`playlist:${playlist.id}`}>{playlist.name}</option>)}</select></label>
       <button disabled={listing || !progress.complete && !error} onClick={loadPlaylists}>{listing ? "Loading playlists…" : "Load my playlists"}</button>
-      <label>Batch size<select value={batchSize} disabled={!progress.complete && !error} onChange={event => setBatchSize(Number(event.target.value))}>{[50, 100, 250].map(size => <option key={size} value={size}>About {size} new albums</option>)}</select></label>
       <button disabled={previewing || !storageReady || saving || (!progress.complete && !error)} onClick={() => void startImport(selectedSource)}>{previewing ? "Checking playlist…" : checkpoints[selectedSource] ? "Continue import" : "Import new albums"}</button>
-      {(checkpoints[selectedSource] || selectedSource.startsWith("playlist:")) && <button disabled={saving || (!progress.complete && !error)} onClick={() => startImport(selectedSource, true)}>Scan from beginning</button>}
       {storageReady && !progress.complete && !error && <button onClick={() => { importController.current?.abort(); importController.current = null; running.current = false; setRetryAt(null); setError("Import stopped. Your loaded albums are still available."); }}>Stop import</button>}
-      <p role="status">{storageReady ? formatSavedPosition(checkpoints[selectedSource]) : "Checking saved import position…"} {albums?.filter(album => album.source === "spotify").length ?? 0} Spotify albums in this collection. Existing albums are skipped. Covers and album names import first; full track lists load when you flip or play a record. Batches finish the current page to avoid reading it again.</p>
-      <p>Your position is saved after each record. Playlist previews use two requests; after confirmation, unchanged playlists need only a version check. Changed playlists are rescanned safely, skipping records you already have.</p>
+      <p role="status">{storageReady ? formatSavedPosition(checkpoints[selectedSource]) : "Checking saved import position…"} {albums?.filter(album => album.source === "spotify").length ?? 0} Spotify albums in this collection. Existing albums are skipped; import progress is saved automatically.</p>
+      <details className="import-more"><summary>More import options</summary><div className="import-more-controls">
+      <label>Batch size<select value={batchSize} disabled={!progress.complete && !error} onChange={event => setBatchSize(Number(event.target.value))}>{[50, 100, 250].map(size => <option key={size} value={size}>About {size} new albums</option>)}</select></label>
+      {(checkpoints[selectedSource] || selectedSource.startsWith("playlist:")) && <button disabled={saving || (!progress.complete && !error)} onClick={() => startImport(selectedSource, true)}>Scan from beginning</button>}
       <label>Spotify playlist link<input value={playlistLink} onChange={event => setPlaylistLink(event.target.value)} placeholder="https://open.spotify.com/playlist/…" /></label>
       <button disabled={previewing || !storageReady || saving || (!progress.complete && !error) || !playlistLink.trim()} onClick={() => { try { const next = `playlist:${playlistId(playlistLink)}`; setSelectedSource(next); void startImport(next); } catch (error) { setPlaylistError((error as Error).message); } }}>Preview playlist link</button>
+      </div></details>
       {preview && <div className="playlist-preview" role="region" aria-label="Confirm playlist import">
         <h2>Import from {preview.name}?</h2>
         <p><a href={`https://open.spotify.com/playlist/${preview.id}`} target="_blank" rel="noreferrer">Open this exact playlist in Spotify ↗</a>{preview.total !== null && ` · ${preview.total} playlist items`}</p>
@@ -335,19 +332,34 @@ export default function LibraryScreen({ connected, demo, legacySession = false }
     <AutoGenres editingDisabled={!storageReady || !!storageError} importing={!progress.complete && !error} onActivity={setGenreActivity} albums={albums ?? []} connected={connected} disabled={!storageReady || saving || (!progress.complete && !error)} onUpdate={updates => {
       const next = mergeAlbums(latestAlbums.current ?? [], updates); latestAlbums.current = next; setAlbums(next);
     }} />
-    <div className="collection-mode"><button aria-pressed={showDemo} onClick={() => { setShowDemo(!showDemo); window.history.pushState(null, "", "/"); }}>{showDemo ? "Back to my collection" : "Listen to local demos"}</button><span>{showDemo ? "Local preview audio · no Spotify requests" : "You can test the player with local demo records."}</span></div>
     {connected && !albums && !error && <div className="import-skeleton" aria-hidden="true">{[0, 1, 2, 3].map(i => <div key={i}><span /></div>)}</div>}
+    </section>
+    <section className="settings-section" aria-labelledby="organization-heading">
+      <h2 id="organization-heading">Organization</h2>
+      <p>Arrange records by artist, album or genre on the shelf, or create your own bins.</p>
+      <button className="settings-action" disabled={!albums?.length} onClick={() => { window.dispatchEvent(new Event("record-cabinet-organize")); window.history.pushState(null, "", "/"); }}>Manage my systems</button>
+    </section>
+    <section className="settings-section" aria-labelledby="account-heading">
+    <h2 id="account-heading">Account &amp; advanced</h2>
+    <aside className="library-connection" aria-label="Spotify connection">
+      <span>{connected ? "Your Spotify collection" : albums?.some(album => album.source !== "mock") ? "Your saved collection · Spotify disconnected" : "Browsing the demo collection"}</span>
+      {connected ? <button disabled={saving || (!progress.complete && !error)} onClick={async () => { try { const response = await apiFetch("/api/spotify/logout", { method: "POST" }); if (response.ok) location.reload(); else setError("Sign-out could not complete. Reload and try again."); } catch { setError("Sign-out could not complete. Please try again."); } }}>Sign out</button> : <a href="/api/spotify/login">Connect Spotify ↗</a>}
+    </aside>
     {connected && storageReady && <CloudLibrarySync disabled={saving || (!progress.complete && !error)} onUpdate={records => {
       latestAlbums.current = records;
       setAlbums(records);
       if (records.length) setRestored(true);
     }} />}
     <AccountTools connected={connected} disabled={!storageReady || saving || (!progress.complete && !error)} />
+    <details className="settings-advanced"><summary>Advanced &amp; troubleshooting</summary>
+    <div className="collection-mode"><button aria-pressed={showDemo} onClick={() => { setShowDemo(!showDemo); window.history.pushState(null, "", "/"); }}>{showDemo ? "Back to my collection" : "Listen to local demos"}</button><span>{showDemo ? "Local preview audio · no Spotify requests" : "You can test the player with local demo records."}</span></div>
     <RequestUsagePanel />
     {process.env.NEXT_PUBLIC_ENGAGEMENT_ENABLED === "true" && connected && <p className="library-storage-status">This test build keeps album browsing and listening history on this device for future discovery bins. It is not uploaded. Account and privacy can remove local data.</p>}
     <BetaTools connected={connected} storageReady={storageReady} storageError={!!storageError} importing={!progress.complete && !error} authError={authError} />
     {settings && process.env.NEXT_PUBLIC_ENGAGEMENT_ENABLED === "true" && connected && <EngagementDebug key={accountId} albums={albums ?? []} />}
+    </details>
     <CollectionBackup albums={albums ?? []} disabled={!storageReady || saving || (!progress.complete && !error)} onRestore={next => { latestAlbums.current = next; setAlbums(next); setRestored(true); setShowDemo(false); }} />
+    </section>
     </div>
   </>;
 }

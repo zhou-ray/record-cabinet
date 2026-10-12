@@ -176,3 +176,26 @@ Known issue: root cause of a distinct playback start allegedly triggered by brow
 Exact next step: refresh the user's existing local app once to load the tracing code; play A and open B, then visit Library & settings → Tracking debug and capture the text WITHOUT reloading again. Compare sleeve/inspection interaction IDs, Start requested / Session confirmed entries, saved session IDs and reported Spotify album. This should distinguish a missing inspection, delayed confirmation, explicit start path, or a display-order misunderstanding. Remain on Milestone 1 until this report is explained; do not start a later milestone.
 
 Last stable commit before this diagnostic patch: `7b4ce66` (`fix: drain inspections queued during playback saves`). Diagnostic commit title: `chore: add readable local tracking diagnostics`.
+
+## Tracking follow-up and authorized settings cleanup (2026-10-12)
+
+The user's debugger-v1 capture shows correct behavior in this run: Salt start requested at 11:39:08, session confirmed at 11:39:12, and Slowhand opened/inspected at 11:39:33 without another start. Do not describe the earlier suspected conversion of inspections to starts as reproduced. Spotify's reported album URI differs from the selected Salt album; v1 lacks enough track information to explain that discrepancy.
+
+Debugger v2 now includes the SDK track URI, linked original URI when present, matched library track URI using the existing matcher, and album context if reported. These are in the existing bounded local-only debug snapshot; no new provider requests, stored history fields or playback rules. Debugger is now under Library & settings → Account & advanced → Advanced & troubleshooting → Tracking debug.
+
+Separately authorized UI cleanup completed:
+- Three clear groups: Library; Organization; Account & advanced.
+- Routine import controls and active progress stay visible; batch size, full rescan and playlist-link entry move into More import options.
+- Manage my systems opens the existing shelf bin editor without remounting the player.
+- Request usage, demo playback and debugging/problem reporting are collapsed under Advanced & troubleshooting. Backup remains last.
+- Removed Spotify data-file import UI and its obsolete UI smoke script; updated first-use guidance and README. Existing export-origin albums, resolution support, parser tests and Record Cabinet backup restore remain supported.
+
+Files: `app/library-screen.tsx`, `app/globals.css`, `app/record-bin.tsx`, `app/listening-guide.tsx`, `app/use-engagement.ts`, `app/lib/engagement-debug.ts`, `app/engagement-debug.tsx`, `README.md`; removed `app/spotify-export-import.tsx` and `scripts/spotify-export-smoke.cjs`; updated `scripts/engagement-integration-smoke.cjs`, `scripts/navigation-player-smoke.cjs`, `scripts/beta-tools-smoke.cjs`, `scripts/offline-smoke.cjs`, and this handoff.
+
+Checks: 230 Node tests PASS; lint PASS; tracking-enabled production build/typecheck PASS; diff check PASS. Desktop/mobile navigation regression PASS, including grouped settings, absent file importer, no horizontal overflow, organization shortcut, same playing SDK instance and no extra playback commands. Desktop/mobile tracking integration PASS, including debugger-v2 matched-track output and collapsed tools. Updated its post-reload demo step to open Advanced before clicking the now-hidden button. Desktop/mobile settings screenshots captured with mocked services; mobile visual review confirms the groups and bottom backup. No real Spotify quota used. Temporary Playwright runner had been cleared from /tmp and was restored outside the repository; no dependency changes.
+
+Known issue: the Salt album-ID mismatch is unexplained pending v2 evidence; no speculative matching changes. This is not a general declaration that every past tracking report is resolved. No later discovery milestone, push, deployment or public tracking activation.
+
+Exact next step for debugging: on the updated local build, play Salt (or another record showing different selected/reported album IDs), open Advanced & troubleshooting → Tracking debug, and capture the latest Spotify observation block. Compare SDK and linked track IDs to the matched library track; if there is no match, investigate status/session timing rather than relabeling the album. Current user-provided evidence does not call for repeating the same sleeve-inspection test. Continue discovery milestones only on explicit authorization.
+
+Last stable commit before this work: `9510b5d` (`chore: add readable local tracking diagnostics`). This change is titled `refactor: simplify settings and clarify playback diagnostics`.

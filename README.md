@@ -15,7 +15,7 @@ The goal is to preserve the pleasure of browsing a physical collection while rem
 - Touch, mouse, and keyboard browsing with paper dividers, remembered positions, random records, and a Recently added bin.
 - Artist, album, genre, and custom organization, including non-Latin names.
 - Integrated turntable with whole-album tonearm scrubbing and play/pause controls; playback persists between records and settings.
-- Resumable Spotify imports with duplicate suppression, local export-file imports, and metadata caching.
+- Resumable Spotify imports with duplicate suppression and metadata caching.
 - Local library persistence, collection backups, and account-scoped cloud synchronization.
 - A no-login fictional catalog with original synthesized demo audio.
 

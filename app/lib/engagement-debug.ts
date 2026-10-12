@@ -1,7 +1,8 @@
 import { engagementAccount } from "./engagement";
 
 type Trace = { time: number; action: "Sleeve opened" | "Start requested" | "Resume requested" | "Inspection requested" | "Session confirmed" | "Tracking ended"; albumId: string | null; id?: string };
-type Observation = { time: number; selectedAlbum: string | null; reportedAlbum: string | null; playing: boolean };
+type Observation = { time: number; selectedAlbum: string | null; reportedAlbum: string | null; playing: boolean;
+  reportedTrack: string | null; linkedTrack: string | null; matchedTrack: string | null; context: string | null };
 let owner = "";
 let actions: Trace[] = [];
 let observation: Observation | null = null;

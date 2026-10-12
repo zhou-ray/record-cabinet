@@ -22,6 +22,7 @@ const origin = process.env.TEST_ORIGIN || 'http://127.0.0.1:3114';
    assert.equal(await page.getByRole('button', { name: 'Report a problem', exact: true }).isVisible(), false);
    await page.getByRole('link', { name: 'Library & settings', exact: true }).click();
    await page.getByRole('heading', { name: 'Library & settings', exact: true }).waitFor();
+   await page.getByText('Advanced & troubleshooting', { exact: true }).click();
    await page.getByRole('button', { name: 'Report a problem', exact: true }).click();
    assert.equal(await welcome.count(), 0);
    await page.getByLabel('What happened?', { exact: true }).fill('The sleeve was hard to flip.');

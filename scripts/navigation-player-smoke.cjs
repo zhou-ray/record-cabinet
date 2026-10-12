@@ -133,6 +133,10 @@ await page.evaluate(()=>{window.originalPlayer=window.mockPlayer;window.document
 await page.getByRole('link',{name:'Library & settings',exact:true}).click();
 await page.getByRole('heading',{name:'Library & settings',exact:true}).waitFor();
 assert.equal(await page.evaluate(()=>window.sdkCalls.includes('disconnect')),false);
+assert.equal(await page.getByText('Import Spotify data file',{exact:true}).count(),0);
+assert.deepEqual(await page.locator('.settings-section > h2').allTextContents(),['Library','Organization','Account & advanced']);
+assert.equal(await page.locator('.settings-advanced').evaluate(el=>el.open),false);
+assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth > window.innerWidth),false,'settings fit the viewport');
 await page.goBack();await player.getByRole('button',{name:'Pause record',exact:true}).waitFor();
 await page.goForward();await page.getByRole('heading',{name:'Library & settings',exact:true}).waitFor();
 await page.getByRole('link',{name:'← Back to records',exact:true}).click();
@@ -144,6 +148,11 @@ assert.equal(await page.evaluate(()=>window.originalPlayer===window.mockPlayer&&
 assert.equal(await page.evaluate(()=>window.sdkCalls.includes('disconnect')),false,'Settings must not destroy the player');
 await page.getByRole('link',{name:'← Back to records',exact:true}).click();
 await player.getByRole('button',{name:'Pause record',exact:true}).waitFor();
+await page.getByRole('link',{name:'Library & settings',exact:true}).click();
+await page.getByRole('button',{name:'Manage my systems',exact:true}).click();
+await page.locator('#system-editor').waitFor();
+assert.equal(await page.getByRole('button',{name:'My systems',exact:true}).getAttribute('aria-pressed'),'true');
+assert.equal(await page.evaluate(()=>window.originalPlayer===window.mockPlayer&&!window.mockPlayer.state.paused),true,'organizing keeps the same playing SDK');
 assert.equal(calls.length,beforeNavigation);assert.deepEqual(errors,[]);
 console.log('PASS '+(mobile?'mobile':'desktop')+': cached tracks on flip, long title layout, playing bin/shelf to Settings, browser back/forward, same SDK instance and no extra playback requests');
 await page.close();

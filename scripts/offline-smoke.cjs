@@ -64,6 +64,7 @@ const album = id => ({id:`spotify:${id}`,source:'spotify',title:`Test album ${id
  const stored=await page.evaluate(()=>new Promise(resolve=>{const r=indexedDB.open('record-cabinet-library:test-account',1);r.onsuccess=()=>{const db=r.result;const q=db.transaction('albums').objectStore('albums').getAll();q.onsuccess=()=>{resolve(q.result.map(a=>a.id));db.close();};};}));
  assert.deepEqual(stored.sort(),['spotify:last','spotify:new','spotify:saved']);
  mode='quota';await page.getByRole('button',{name:'Import new albums',exact:true}).click();await page.getByRole('alert').filter({hasText:'quota exhausted'}).waitFor();const count=calls.length;await page.waitForTimeout(300);assert.equal(calls.length,count);
+ if (!await page.getByRole('button',{name:'Listen to local demos',exact:true}).isVisible()) await page.getByText('Advanced & troubleshooting',{exact:true}).click();
  await page.getByRole('button',{name:'Listen to local demos',exact:true}).click();
  await page.getByRole('button',{name:'Open All records, 15 records',exact:true}).click();
  await page.getByRole('button',{name:/^Show back cover and tracks of /}).first().click();await page.getByRole('button',{name:/^Play .* by tapping the vinyl$/}).click();
