@@ -2,6 +2,9 @@ export type SystemPlayback = { play: () => void; pause: () => void; seek: (secon
 const actions: MediaSessionAction[] = ["play", "pause", "stop", "seekto", "seekbackward", "seekforward", "previoustrack", "nexttrack"];
 export function installMediaControls(session: MediaSession, controls: SystemPlayback) {
   const handlers: Partial<Record<MediaSessionAction, MediaSessionActionHandler>> = {
+    // Consume system track-navigation commands without changing the record.
+    previoustrack: () => {},
+    nexttrack: () => {},
     play: () => { if (controls.canPlay()) controls.play(); },
     pause: () => { if (controls.canPause()) controls.pause(); },
     stop: () => { if (controls.canPause()) controls.pause(); },

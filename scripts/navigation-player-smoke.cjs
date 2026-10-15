@@ -89,7 +89,11 @@ assert.equal(await page.evaluate(()=>navigator.mediaSession.metadata.artwork[0].
 assert.equal(await page.evaluate(()=>window.mockPlayer.options.enableMediaSession),true);
 await page.evaluate(()=>{navigator.mediaSession.metadata=null;window.dispatchEvent(new Event('pageshow'));});
 await page.waitForFunction(()=>navigator.mediaSession.metadata?.title==='A Very Long Album Name With Plenty Of Words That Must Wrap Around Without Colliding With The Record Count');
-assert.equal(await page.evaluate(()=>window.systemHandlers.nexttrack),null);
+assert.equal(await page.evaluate(()=>{
+ const before=JSON.stringify(window.sdkCalls);
+ window.systemHandlers.nexttrack();window.systemHandlers.previoustrack();
+ return JSON.stringify(window.sdkCalls)===before;
+}),true,'system next/previous commands do not change playback');
 // Keep Spotify state updates flowing while the sleeve returns beside the player.
 await page.evaluate(()=>{
  window.returnTicker=setInterval(()=>window.mockPlayer.emit(0,1000),80);
