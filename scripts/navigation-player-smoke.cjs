@@ -20,7 +20,10 @@ window.Spotify={Player: class {
  async connect(){this.options.getOAuthToken(()=>this.listeners.ready({device_id:'browser'}));return true;}
  disconnect(){window.sdkCalls.push('disconnect');} async activateElement(){}
  async setVolume(value){window.sdkCalls.push({volume:value});this.volume=value;}
- emit(index,position,paused=false){this.at=Date.now();this.state={paused,position,duration:index?120000:100000,track_window:{current_track:{uri:'spotify:track:'+ (index?'second':'first'),name:'Track',album:{uri:'spotify:album:smoke'}}}};this.listeners.player_state_changed(this.state);}
+ emit(index,position,paused=false){if(this.options.enableMediaSession){
+  navigator.mediaSession.setActionHandler('nexttrack',()=>window.sdkCalls.push('sdk-next'));
+  navigator.mediaSession.setActionHandler('previoustrack',()=>window.sdkCalls.push('sdk-previous'));
+ }this.at=Date.now();this.state={paused,position,duration:index?120000:100000,track_window:{current_track:{uri:'spotify:track:'+ (index?'second':'first'),name:'Track',album:{uri:'spotify:album:smoke'}}}};this.listeners.player_state_changed(this.state);}
  async pause(){window.sdkCalls.push('pause');if(window.pauseNoop)return;this.state.paused=true;this.listeners.player_state_changed(this.state);}
  async resume(){window.sdkCalls.push('resume');if(window.stallResume)return new Promise(()=>{});this.state.paused=false;this.listeners.player_state_changed(this.state);}
  async seek(position){window.sdkCalls.push({seek:position});this.state.position=position;this.listeners.player_state_changed(this.state);}
@@ -86,14 +89,16 @@ assert.deepEqual(calls.filter(x=>x!=='token'&&x!=='details').map(x=>x.action),['
 await page.waitForFunction(()=>navigator.mediaSession.metadata?.title==='A Very Long Album Name With Plenty Of Words That Must Wrap Around Without Colliding With The Record Count');
 assert.equal(await page.evaluate(()=>navigator.mediaSession.metadata.artist),'Test artist');
 assert.equal(await page.evaluate(()=>navigator.mediaSession.metadata.artwork[0].src),'https://covers.example/album.svg');
-assert.equal(await page.evaluate(()=>window.mockPlayer.options.enableMediaSession),true);
+assert.equal(await page.evaluate(()=>window.mockPlayer.options.enableMediaSession),false);
 await page.evaluate(()=>{navigator.mediaSession.metadata=null;window.dispatchEvent(new Event('pageshow'));});
 await page.waitForFunction(()=>navigator.mediaSession.metadata?.title==='A Very Long Album Name With Plenty Of Words That Must Wrap Around Without Colliding With The Record Count');
 assert.equal(await page.evaluate(()=>{
+ window.mockPlayer.emit(0,1000);
  const before=JSON.stringify(window.sdkCalls);
  window.systemHandlers.nexttrack();window.systemHandlers.previoustrack();
+ window.systemHandlers.seekbackward({seekOffset:15});window.systemHandlers.seekforward({seekOffset:15});
  return JSON.stringify(window.sdkCalls)===before;
-}),true,'system next/previous commands do not change playback');
+}),true,'system track and timed arrows do not change playback');
 // Keep Spotify state updates flowing while the sleeve returns beside the player.
 await page.evaluate(()=>{
  window.returnTicker=setInterval(()=>window.mockPlayer.emit(0,1000),80);
@@ -158,6 +163,9 @@ await page.locator('#system-editor').waitFor();
 assert.equal(await page.getByRole('button',{name:'My systems',exact:true}).getAttribute('aria-pressed'),'true');
 assert.equal(await page.evaluate(()=>window.originalPlayer===window.mockPlayer&&!window.mockPlayer.state.paused),true,'organizing keeps the same playing SDK');
 assert.equal(calls.length,beforeNavigation);assert.deepEqual(errors,[]);
+await page.getByRole('slider',{name:'Tonearm position',exact:true}).focus();
+await page.keyboard.press('ArrowRight');
+await page.waitForFunction(()=>window.sdkCalls.some(call=>typeof call==='object'&&Number.isFinite(call.seek)));
 console.log('PASS '+(mobile?'mobile':'desktop')+': cached tracks on flip, long title layout, playing bin/shelf to Settings, browser back/forward, same SDK instance and no extra playback requests');
 await page.close();
 }
