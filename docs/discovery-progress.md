@@ -6,7 +6,7 @@ Milestone 2 — Privacy Controls and Data Export.
 
 **Status: Complete — Download My Data and Reset Personalization History implemented and verified.** Stopped at the Milestone 2 boundary. Do not start Milestone 3 without the next authorization. See the completion record below; older dated sections describe previous checkpoints.
 
-Set `NEXT_PUBLIC_ENGAGEMENT_ENABLED=true` **at build time** to exercise instrumentation. It is deliberately off in ordinary builds and `.env.example` pending provider-release review. This session does not deploy or enable collection for public testers.
+Set `NEXT_PUBLIC_ENGAGEMENT_ENABLED=true` **at build time** to exercise instrumentation. It is deliberately off in ordinary builds and `.env.example` pending provider-release review. The 2026-10-15 deployment includes these controls with collection explicitly disabled; see the latest deployment entry below.
 
 ## Architecture findings
 
@@ -250,3 +250,7 @@ Exact next step: stop at this completed milestone. Await authorization for Miles
 User reports native arrows still skip locally and online. Inspection found that `enableMediaSession: true` still allowed Spotify's SDK to install its own metadata/action handlers, competing with app handlers; timed `seekbackward`/`seekforward` also remained enabled. Disabled SDK media-session registration so the app owns these controls, and made both timed arrows no-ops alongside next/previous. Play/pause, absolute seek and the tonearm remain supported. This addresses concrete handler gaps, but does not establish that every native OS control surface dispatches to this page.
 
 Changed `app/lib/spotify-browser.ts`, `app/lib/media-session.ts`, `tests/media-session.test.mjs`, `scripts/navigation-player-smoke.cjs`. Browser mock now models SDK handler registration during playback updates when enabled, checks all four arrow actions, and verifies tonearm seeking. Checks: 236 tests, lint, production webpack build/typecheck, desktop/mobile navigation/player smoke and diff check. Real Spotify/iOS/macOS lock-screen ownership still needs physical-device verification. Online has not received either local media-control patch; no push/deploy. Reload/reconnect the local player to construct the SDK with the new option. Milestone 2 stays complete; Milestone 3 not started. Last stable commit before this patch: `9894759`.
+
+## Authorized production deployment (2026-10-15)
+
+After closing Spotify desktop, the user reports Mac Now Playing arrows behaved as requested; mobile verification remains outstanding. User authorized deploying the current app to the existing HTTPS address for phone testing. Deployed `fd70036` to https://record-cabinet-livid.vercel.app as `dpl_CUL1wjrSt5phPRGnfC5tp6E57T7q`, with `NEXT_PUBLIC_ENGAGEMENT_ENABLED=false` explicitly set at build time. Vercel build/typecheck passed. Public demo/settings/privacy returned 200 at 390px/1400px with no browser errors or horizontal overflow. Served bundles confirm collection disabled and SDK media-session registration disabled. No authenticated/live Spotify playback was automated, and no GitHub push occurred. Milestone 2 complete; Milestone 3 untouched. Next user test: reload the production site on a phone, start playback, check lock-screen arrows/play/pause and tonearm seeking. Discovery work remains stopped pending authorization.

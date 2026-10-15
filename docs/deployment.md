@@ -13,7 +13,7 @@ Remaining owner setup: register `https://record-cabinet-livid.vercel.app/api/spo
 
 Verified: public page loads, mobile page has no horizontal overflow or browser errors, and login redirects to Spotify with the production HTTPS callback and secure HttpOnly cookies. Authorization return and playback still need an owner sign-in after callback registration.
 
-To redeploy from this linked directory, run `npx vercel@59.23.1 --prod`. Keep production secrets in Vercel; never paste account tokens in chat.
+To redeploy from this linked directory, run `npx vercel@59.23.1 deploy --prod --scope ray-s-stuff --build-env NEXT_PUBLIC_ENGAGEMENT_ENABLED=false`. Keep production secrets in Vercel; never paste account tokens in chat.
 
 The beta uses the free Upstash Redis database `record-cabinet-limits` (automatic paid upgrades disabled), connected to production through Vercel. `KV_REST_API_URL` and `KV_REST_API_TOKEN` are server-only credentials. Atomic Redis scripts use the Redis clock to space requests by one second across instances and share Spotify cooldowns. Production fails closed if Redis is missing or unavailable. Use the same Redis database/key in every deployment that shares this Spotify developer quota; development otherwise uses a local gate. This Mac is configured with the same database so local testing and production share pacing too.
 
@@ -35,3 +35,6 @@ References:
 Beta validation: 105 unit tests, lint, production webpack build, offline browser regression, import-resume regression, integrated player checks, two-account mobile switching/deletion checks, and the Redis-only coordination check passed. Real Spotify sign-in and playback by the invited accounts remain owner/tester checks.
 
 Deployed beta: `dpl_DU1ZHBsfr3dNGb4mYQS7dhNFD4uB` on 2026-09-19. Production root, privacy page, anonymous account status, secure OAuth redirect, and mobile layout verified after deployment without Spotify API calls.
+
+
+Production update (2026-10-15): deployed application commit `fd70036` as `dpl_CUL1wjrSt5phPRGnfC5tp6E57T7q`, aliased to https://record-cabinet-livid.vercel.app. Includes Milestone 2 privacy controls and system-arrow fixes. Explicit build override `NEXT_PUBLIC_ENGAGEMENT_ENABLED=false`; verified served JavaScript contains disabled collection and `enableMediaSession:false`. The first unscoped CLI attempt returned Not authorized; authenticated identity/project access were valid, and explicit `--scope ray-s-stuff` succeeded. Build and TypeScript passed on Vercel. Public demo, settings and privacy pages returned 200 without page errors or horizontal overflow at 390px and 1400px. Real phone lock-screen playback still requires user testing. No GitHub push or Git integration configured during this deployment.
