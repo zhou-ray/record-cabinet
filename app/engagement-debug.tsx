@@ -1,20 +1,32 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Album } from "./data/types";
 import { useAccount } from "./account-context";
 import { engagementAccount, engagementAlbumId } from "./lib/engagement";
 import { createEngagementStorage } from "./lib/engagement-storage";
 import { readEngagementDebug } from "./lib/engagement-debug";
+import { subscribeHistoryReset } from "./lib/engagement-reset";
 
 export default function EngagementDebug({ albums }: { albums: Album[] }) {
   const { accountId } = useAccount();
   const [open, setOpen] = useState(false), [report, setReport] = useState("");
   const busy = useRef(false);
+  const revision = useRef(0);
+  useEffect(() => {
+    const invalidate = () => { revision.current++; };
+    const unsubscribe = subscribeHistoryReset(accountId, () => { revision.current++; setReport("History was reset. Refresh tracking to read new activity."); });
+    return () => { invalidate(); unsubscribe(); };
+  }, [accountId]);
   async function refresh() {
     if (busy.current || !engagementAccount(accountId)) return;
     busy.current = true;
+    const ticket = revision.current;
     try {
-      const saved = await createEngagementStorage(accountId).load();
+      const store = createEngagementStorage(accountId);
+      const saved = await store.load();
+      const generation = await store.generation();
+      if (ticket !== revision.current) return;
+      if (generation !== saved.generation) { setReport("History changed. Refresh tracking again."); return; }
       const debug = readEngagementDebug(accountId);
       const names = new Map<string, string>();
       for (const album of albums) {
@@ -48,7 +60,7 @@ export default function EngagementDebug({ albums }: { albums: Album[] }) {
         "ACTIONS THIS PAGE LOAD · newest first (latest 60)",
         ...debug.actions.reverse().map(action => `${time(action.time)} · ${action.action} · ${name(action.albumId)}${action.id ? `\n  ID: ${action.id}` : ""}`),
       ].join("\n"));
-    } catch { setReport("Tracking history could not be read. Try Refresh tracking again."); }
+    } catch { if (ticket === revision.current) setReport("Tracking history could not be read. Try Refresh tracking again."); }
     finally { busy.current = false; }
   }
   if (process.env.NEXT_PUBLIC_ENGAGEMENT_ENABLED !== "true" || !engagementAccount(accountId)) return null;

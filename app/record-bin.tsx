@@ -183,7 +183,7 @@ export default function RecordBin({ collection, genreEditing, onGenreUpdate }: {
   const suppressClick = useRef(false);
   const album = albums[index];
   const engagement = useEngagement();
-  const inspectionPending = useRef<{ id: string; timestamp: number; albumId: string } | null>(null);
+  const inspectionPending = useRef<{ id: string; timestamp: number; albumId: string; inspect: ReturnType<typeof engagement.captureInspection> } | null>(null);
   const player = usePlayer();
   const spotifyPlayer = useSpotifyPlayer(() => player.stop(), engagement.sink);
   const [preferLocal, setPreferLocal] = useState(false);
@@ -307,7 +307,7 @@ export default function RecordBin({ collection, genreEditing, onGenreUpdate }: {
   }
 
   function selectSleeve(timestamp: number) {
-    inspectionPending.current = engagement.sink ? { id: crypto.randomUUID(), timestamp, albumId: album.id } : null;
+    inspectionPending.current = engagement.sink ? { id: crypto.randomUUID(), timestamp, albumId: album.id, inspect: engagement.captureInspection() } : null;
     if (inspectionPending.current) traceEngagement(accountId, "Sleeve opened", album.id, inspectionPending.current.id);
     setFlipped(false); setPulled(true); setFlipPhase("lifting");
   }
@@ -327,7 +327,7 @@ export default function RecordBin({ collection, genreEditing, onGenreUpdate }: {
     // Unresolved export albums get the same deliberate interaction after hydration.
     if (ready.playback.kind === "spotify-pending") return;
     inspectionPending.current = null;
-    engagement.inspect(ready, pending.id, pending.timestamp);
+    pending.inspect(ready, pending.id, pending.timestamp);
   }
   function finishLift() {
     if (flipPhase === "lifting") {

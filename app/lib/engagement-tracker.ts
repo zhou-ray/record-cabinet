@@ -1,6 +1,7 @@
 import type { Album } from "../data/types";
 import { albumDuration, albumProgress, playbackTrackIndex } from "./album-timeline";
 import type { BrowserPlayback } from "./spotify-browser";
+import { isHistoryResetError } from "./engagement-storage";
 import { ENGAGEMENT, createPlaybackAccumulator, engagementAlbumId, inspection, startPlaybackSession, type PlaybackSession, type Inspection } from "./engagement";
 
 export type EngagementSink = {
@@ -17,6 +18,7 @@ type Dependencies = {
   acquire: () => Promise<(() => void) | null>;
   error: () => void;
   sessionStarted?: (session: PlaybackSession) => void;
+  invalidated?: () => void;
 };
 
 /** Thin runtime coordinator; playback must never wait for storage or ownership. */
@@ -37,7 +39,11 @@ export function createEngagementTracker(deps: Dependencies) {
         try {
           if ("type" in value) await deps.store.recordInspection(value); else await deps.store.saveSession(value);
           if (pending.get(key) === value) pending.delete(key);
-        } catch { deps.error(); break; } // Retry at the next checkpoint, not a tight loop.
+        } catch (error) {
+          if (isHistoryResetError(error)) { discard(); deps.invalidated?.(); }
+          else deps.error();
+          break; // Ordinary failures retry at a checkpoint; reset failures never retry.
+        }
       }
     })().finally(() => { writing = null; });
     return writing;
@@ -58,6 +64,10 @@ export function createEngagementTracker(deps: Dependencies) {
     if (accumulator) queue(accumulator.end(Math.max(deps.now(), accumulator.snapshot().updatedAt)));
     accumulator = null;
     relinquish();
+  }
+  function discard() {
+    stopped = true; generation++; selected = null; accumulator = null; pending.clear();
+    const unlock = release; release = null; unlock?.();
   }
   return {
     begin(album: Album) {
@@ -105,6 +115,8 @@ export function createEngagementTracker(deps: Dependencies) {
     },
     interrupt() { accumulator?.interrupt(); if (accumulator) queue(accumulator.snapshot()); relinquish(); },
     end,
+    discard,
+    hasPlayback: () => !stopped && selected !== null,
     flush,
     async dispose() { stopped = true; end(); await flush(); await flush(); pending.clear(); },
   };

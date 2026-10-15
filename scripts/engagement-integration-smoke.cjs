@@ -72,8 +72,15 @@ function cookie() {
     await page.getByRole('button', { name: 'Download My Data', exact: true }).click();
     const retained = JSON.parse(await fs.readFile(await (await retainedDownload).path(), 'utf8'));
     assert.equal(retained.events[0].id, 'retained-inspection', 'disabled tracking still permits export of old history');
+    await page.getByRole('button', { name: 'Reset Personalization History', exact: true }).click();
+    await page.getByRole('button', { name: 'Reset history', exact: true }).click();
+    await page.getByRole('button', { name: 'Reset history', exact: true }).waitFor({ state: 'detached' });
+    const clearedDownload = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Download My Data', exact: true }).click();
+    const clearedData = JSON.parse(await fs.readFile(await (await clearedDownload).path(), 'utf8'));
+    assert.deepEqual(clearedData.events, []); assert.deepEqual(clearedData.sessions, []);
     assert.deepEqual(errors, []); await context.close();
-    console.log(`PASS: no automatic history collection; empty and retained-history downloads work with tracking disabled at ${width}px`);
+    console.log(`PASS: no automatic history collection; empty/retained-history downloads and reset work with tracking disabled at ${width}px`);
     continue;
    }
    await page.evaluate(async account => {
@@ -218,6 +225,79 @@ function cookie() {
    assert.equal((await read()).sessions.length, 1, 'local demo audio excluded');
    await page.getByRole('link', { name: 'Library & settings', exact: true }).click();
    await page.getByText('Account and privacy', { exact: true }).click();
+   await page.getByRole('button', { name: 'Back to my collection', exact: true }).click();
+   await page.getByRole('button', { name: 'Open All records, 2 records', exact: true }).click();
+   await surface.focus(); await page.keyboard.press('Home'); await page.waitForTimeout(150);
+   await page.keyboard.press('Enter');
+   await play.waitFor();
+   await page.waitForFunction(() => !document.querySelector('button[title="Play this album"]').disabled);
+   await play.click();
+   await page.getByRole('button', { name: 'Pause record', exact: true }).waitFor();
+   await page.evaluate(() => window.mockPlayer.emit(0)); await page.waitForTimeout(100);
+   await page.evaluate(() => { window.mockPlayer.emit(0); window.playerBeforeReset = window.mockPlayer; });
+   await page.waitForTimeout(100);
+   await page.getByRole('link', { name: 'Library & settings', exact: true }).click();
+   const beforeReset = await read();
+   const cookiesBeforeReset = await context.cookies();
+   const binsBeforeReset = await page.evaluate(key => localStorage.getItem(key), organizationKey);
+   await page.getByRole('button', { name: 'Reset Personalization History', exact: true }).click();
+   await page.getByRole('button', { name: 'Cancel reset', exact: true }).click();
+   assert.deepEqual(await read(), beforeReset, 'cancel preserves history');
+   await page.evaluate(() => {
+    window.originalClear = IDBObjectStore.prototype.clear;
+    IDBObjectStore.prototype.clear = function () { if (this.name === 'sessions') throw new Error('test reset failure'); return window.originalClear.call(this); };
+   });
+   await page.getByRole('button', { name: 'Reset Personalization History', exact: true }).click();
+   await page.getByRole('button', { name: 'Reset history', exact: true }).click();
+   await page.getByText('History could not be reset. History has not been cleared; please try again.', { exact: true }).waitFor();
+   assert.deepEqual(await read(), beforeReset, 'failed reset rolls back both stores');
+   await page.evaluate(() => { IDBObjectStore.prototype.clear = window.originalClear; });
+   await page.getByRole('button', { name: 'Reset history', exact: true }).click();
+   await page.waitForFunction(async account => {
+    const db = await new Promise(resolve => { const r = indexedDB.open(`record-cabinet-engagement:${account}`); r.onsuccess = () => resolve(r.result); });
+    const tx = db.transaction(['events', 'sessions']);
+    const count = name => new Promise(resolve => { const r = tx.objectStore(name).count(); r.onsuccess = () => resolve(r.result); });
+    const counts = await Promise.all([count('events'), count('sessions')]); db.close(); return counts.every(n => n === 0);
+   }, account);
+   assert.deepEqual(await context.cookies(), cookiesBeforeReset, 'reset keeps sign-in');
+   assert.equal(await page.evaluate(key => localStorage.getItem(key), organizationKey), binsBeforeReset, 'reset keeps bins');
+   await page.getByRole('button', { name: 'Reset Personalization History', exact: true }).click();
+   await page.getByRole('button', { name: 'Reset history', exact: true }).click();
+   await page.waitForTimeout(200);
+   assert.equal((await read()).events.length, 0, 'repeat reset remains empty');
+   const resetPeer = await context.newPage();
+   resetPeer.on('pageerror', error => errors.push(error.message));
+   await resetPeer.goto(origin + '/settings');
+   await resetPeer.getByText('Account and privacy', { exact: true }).click();
+   await resetPeer.getByRole('button', { name: 'Reset Personalization History', exact: true }).click();
+   await resetPeer.getByRole('button', { name: 'Reset history', exact: true }).click();
+   await resetPeer.getByRole('button', { name: 'Reset history', exact: true }).waitFor({ state: 'detached' });
+   await page.waitForTimeout(300);
+   await page.evaluate(() => { window.testElapsed += 10000; window.mockPlayer.emit(10); });
+   await page.waitForTimeout(150);
+   assert.equal((await read()).sessions.length, 0, 'ongoing playback after cross-tab reset does not synthesize a start');
+   assert.equal(await page.evaluate(() => window.playerBeforeReset === window.mockPlayer && !window.mockPlayer.state.paused), true, 'resets leave the same SDK playing');
+   const afterResetDownload = resetPeer.waitForEvent('download');
+   await resetPeer.getByRole('button', { name: 'Download My Data', exact: true }).click();
+   const resetExport = JSON.parse(await fs.readFile(await (await afterResetDownload).path(), 'utf8'));
+   assert.deepEqual(resetExport.events, []); assert.deepEqual(resetExport.sessions, []);
+   assert.equal(resetExport.library.length, 2, 'reset keeps albums');
+   await resetPeer.close();
+   await page.getByRole('link', { name: '← Back to records', exact: true }).click();
+   await page.locator('[class*=activeBack] [class*=backTitle]').click();
+   await page.locator('#album-details').waitFor({ state: 'detached' });
+   await surface.focus(); await page.keyboard.press('Enter');
+   await page.waitForTimeout(250);
+   assert.equal((await read()).events.filter(e => e.type === 'album_inspected').length, 1, 'fresh inspection starts new history');
+   assert.equal((await read()).sessions.length, 0);
+   await page.getByRole('button', { name: 'Pause record', exact: true }).click();
+   await page.getByRole('button', { name: 'Play record', exact: true }).click();
+   await page.evaluate(() => window.mockPlayer.emit(10)); await page.waitForTimeout(150);
+   await page.evaluate(() => window.mockPlayer.emit(10)); await page.waitForTimeout(150);
+   assert.equal((await read()).sessions.length, 1, 'explicit resume creates a fresh session');
+   const freshSession = (await read()).sessions[0].id;
+   assert.equal(beforeReset.sessions.some(old => old.id === freshSession), false, 'old sessions never return');
+   await page.getByRole('link', { name: 'Library & settings', exact: true }).click();
    await page.getByRole('button', { name: 'Disconnect and remove local data', exact: true }).click();
    await page.getByRole('button', { name: 'Remove data and disconnect', exact: true }).click();
    await page.waitForFunction(async account => {
@@ -230,7 +310,7 @@ function cookie() {
    assert.equal(cleared.events.length, 0); assert.equal(cleared.sessions.length, 0);
    assert.deepEqual(errors, []);
    await context.close();
-   console.log(`PASS: pointer/keyboard inspection, playback, ownership, account-scoped download and error recovery, navigation, reload and local removal at ${width}px`);
+   console.log(`PASS: pointer/keyboard inspection, playback, ownership, account-scoped download, reset/cancel/rollback, cross-tab playback preservation, fresh tracking, navigation, reload and local removal at ${width}px`);
   }
  } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

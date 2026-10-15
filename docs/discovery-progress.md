@@ -4,9 +4,9 @@
 
 Milestone 2 — Privacy Controls and Data Export.
 
-**Status: Partially complete — Download My Data implemented and verified; Reset Personalization History remains.** User authorized starting Milestone 2 with a usage-aware stopping point. This session stops at the finished export boundary. Do not start Milestone 3.
+**Status: Complete — Download My Data and Reset Personalization History implemented and verified.** Stopped at the Milestone 2 boundary. Do not start Milestone 3 without the next authorization. See the completion record below; older dated sections describe previous checkpoints.
 
-Set `NEXT_PUBLIC_ENGAGEMENT_ENABLED=true` **at build time** to exercise instrumentation. It is deliberately off in ordinary builds and `.env.example` until user data controls and provider-release review are ready. This session does not deploy or enable collection for public testers.
+Set `NEXT_PUBLIC_ENGAGEMENT_ENABLED=true` **at build time** to exercise instrumentation. It is deliberately off in ordinary builds and `.env.example` pending provider-release review. This session does not deploy or enable collection for public testers.
 
 ## Architecture findings
 
@@ -91,35 +91,28 @@ The previous foundation remains in `app/lib/engagement.ts` and `tests/engagement
 
 ## Known issues / release limitations
 
-1. **Disabled by default:** public activation still requires Milestone 2 data controls and review of applicable Spotify provider requirements. No claim of provider approval or production rollout.
+1. **Disabled by default:** public activation still requires review of applicable Spotify provider requirements. No claim of provider approval or production rollout.
 2. **Conservative measurement:** short startup/lock acquisition gaps, seeks, background suspension, uncertain SDK state, and a crash before the next durable checkpoint can undercount. No claim of exact listening measurement or guaranteed unload persistence. Native iOS background playback still needs physical-device tests.
 3. **Device-local:** Web Locks coordinate same-origin tabs only, not different devices. No cross-device aggregate or sync exists; future sync needs deliberate session/reset semantics.
 4. **Unresolved imports:** inspection is deferred until album identity resolves within the selected opening; failed/cancelled resolution does not create a canonical event. Manual/demo records are intentionally excluded. Track availability changes during a session conservatively interrupt counting if the duration denominator changes.
 5. **Retention:** events and sessions are pruned independently at activation/hourly maintenance. Do not assume unlimited historical coverage, or that every retained event has a retained session. Active memory retry is capped; persistent storage failure can lose events once capped or the tab closes.
 6. **Saved-only discovery eligibility remains unresolved:** imports from playlists/Liked Songs and cached saved provenance are not authoritative current Spotify saved membership. Address before Milestone 3/4; do not infer eligibility from collected behavior.
 7. **Personal-bin action tracking is deferred:** it is not part of Milestone 1's enumerated inspect/play/duration/completion acceptance list. Existing personal memberships remain available as optional signals; event integration belongs with organizational work before scoring uses it.
-8. **History controls incomplete:** Download My Data now exports saved local engagement history, album references and bins. A dedicated history-only reset is still pending. Broad account removal remains available but also removes the local collection and sign-in; it is not a substitute for the upcoming reset. Existing collection backups still omit history; the separate data export is not restorable.
+8. **Local history controls:** Download My Data exports saved history, album references and bins. Reset deletes only this account’s local behavioral history and pending writes, preserving collection and sign-in. Other devices and already-downloaded files are unaffected. The separate data export is not restorable. Older schema-v1 tabs must reload after the upgrade; a blocked reset reports failure without clearing history.
 
 ## Not yet implemented
 
-Remaining Milestone 2: personalization-only reset and cross-tab/stale-writer protection. Milestones 3–8 remain untouched: saved-membership reconciliation; generated-bin snapshots; cold-start heuristics; scoring/assignment; generated-bin feedback; evaluation; polish. No recommendation logic added.
+Milestone 2 is complete. Milestones 3–8 remain untouched: saved-membership reconciliation; generated-bin snapshots; cold-start heuristics; scoring/assignment; generated-bin feedback; evaluation; polish. No recommendation logic added.
 
 ## Exact next step
 
-Resume **Milestone 2 only**, implementing Reset Personalization History:
-
-1. Read both discovery documents and Git status. Preserve the completed export and keep production tracking default-off.
-2. Define deletion as this account's local inspection/playback events, session summaries, pending behavioral writes and in-memory debug trace. Preserve library albums, custom systems/memberships, genre edits, import progress, cloud copy and authentication. Generated histories/feedback do not yet exist.
-3. Add a durable reset generation/fence checked atomically by every history write. Broadcast messages alone cannot protect against a suspended tab or late in-flight writer. Coordinate with existing Web Locks without waiting indefinitely for a playing tab's long-held lock; handle blocked upgrades and storage errors honestly.
-4. Stop/drain old trackers and reject stale pending writes across tabs. Keep audio playing. Decide explicitly when fresh tracking can resume (recommended: new explicit playback/inspection, no synthetic start from the already-playing record). Do not repurpose broad account removal.
-5. Add confirmation and concise reset scope/result copy. Test during playback, queued/failed writes, suspended/other tabs, account isolation, repeated reset, storage failure, fresh post-reset interactions, and unchanged albums/bins/auth/cloud. Verify exports after reset.
-6. Run tests/lint/typecheck/build and relevant browser checks, update this handoff, commit, and STOP before Milestone 3.
+STOP here. On the next authorized continuation, read both discovery documents and git status, then begin **Milestone 3 only**. First resolve the documented saved-membership eligibility prerequisite: playlist/Liked Songs imports are not proof of Spotify saved-album membership. Define explicit membership/source/verification timestamps and unknown/removed behavior before generating eligible snapshots. Do not add behavioral scoring from later milestones or enable public collection automatically.
 
 ## Last known stable commit
 
-- Before Milestone 2: `57e9d74` (`refactor: simplify settings and clarify playback diagnostics`), already pushed to GitHub; Vercel has not been deployed.
-- This tested export checkpoint is titled `feat: add account-scoped personalization data export`; obtain its hash with `git log -1` after this session's commit.
-- Milestone 2 is not complete. No push, deploy or public tracking activation in this session.
+- Before this completion: `c7716cd` (`fix: ignore system next and previous track controls`).
+- This tested completion is titled `feat: add personalization history reset`; use `git log -1` for its hash after commit.
+- No push, deployment, public tracking activation or Milestone 3 work in this session.
 
 ## Milestone 1 correction — browsing during playback (2026-10-08)
 
@@ -233,3 +226,21 @@ User requested Random record respect the current selection. `app/record-bin.tsx`
 ## Independent system-media control change (2026-10-15)
 
 At the user's request, Next/Previous media-session actions now have explicit no-op handlers. Play/Pause, seek actions and turntable-arm scrubbing are unchanged. Updated `app/lib/media-session.ts`, its existing unit test and `scripts/navigation-player-smoke.cjs`. Verified 234 tests, lint, production build/typecheck and diff check; desktop/mobile-layout browser checks invoke both system actions and confirm no SDK playback calls, while navigation and existing transport behavior still pass. Physical iOS/macOS media surfaces still need device verification; OS-controlled button appearance is not changed by this patch. No push/deploy. Milestone 2 remains partial at the export checkpoint; history-only reset is still next.
+
+## Milestone 2 completion — history reset (2026-10-15)
+
+Completed:
+- Added confirmed Reset Personalization History under Account and privacy, alongside Download My Data. Available even when collection is disabled. Cancellation preserves history; failure reports that nothing was cleared.
+- Reset atomically clears this account’s local events and sessions while advancing a minimal non-behavioral generation marker. Albums, personal systems/memberships, genres, import settings, cloud data, authentication and audio playback are untouched. Generated history/feedback do not exist yet.
+- Engagement schema v2 migrates existing rows intact. Every behavioral writer captures its generation before collecting and checks it in the same transaction as its write. Queued, failed, concurrent and notification-missing writers cannot resurrect deleted history. Blocked upgrades reject without silently completing a reset later; old schema-v1 code cannot reopen the upgraded database.
+- Same-tab events and BroadcastChannel discard trackers/debug snapshots promptly. Focus/visibility/checkpoint checks recover missed notices; correctness does not depend on notifications. Reset never waits for the playing tab’s long-held playback lock.
+- Ongoing audio keeps playing without a synthetic new session. Fresh sleeve inspections and explicit play/resume start fresh history. Deferred album-resolution inspections remain bound to the original tracker so an old opening cannot become new history after reset.
+- Export/debug reads cancel stale snapshots on reset; downloads following reset contain empty behavioral history and retain album/bin references. No credentials or new provider calls.
+
+Files changed: `app/lib/engagement-storage.ts`, `app/lib/engagement-reset.ts` (new), `app/lib/engagement-tracker.ts`, `app/use-engagement.ts`, `app/record-bin.tsx`, `app/personalization-data.tsx`, `app/engagement-debug.tsx`, `app/privacy/page.tsx`, `tests/engagement-tracker.test.mjs`, `scripts/engagement-storage-smoke.cjs`, `scripts/engagement-integration-smoke.cjs`, and both discovery documents.
+
+Checks: 236 Node tests PASS; lint PASS; tracking-enabled and tracking-disabled production webpack builds/typechecks PASS; diff check PASS. Real Chrome IndexedDB checks PASS for v1 migration, blocked/late upgrade, reset rollback, raced/old writes, repeated resets, fresh writers, account isolation and another page missing notifications. Mocked-Spotify integration PASS at 390px/1400px with reduced motion: cancel, injected storage failure, repeated/cross-tab reset during playback, unchanged SDK/cookies/bins/albums, empty post-reset export, fresh inspection/resume with new session ID, plus previous navigation/inspection/completion/ownership/removal regressions. Disabled-build checks verify no automatic collection and export/reset of retained history. No live Spotify calls or credentials used.
+
+Known limits: resets are origin/account/device-local; other devices and exported files are unaffected. Tabs missing notifications may retain an old visible snapshot until a focus/checkpoint/refresh, but stale writes remain fenced. Historical export reads across library/history/organization are not globally atomic. Native iOS/background audio remains a physical-device check. Public collection remains default-off pending release/provider review.
+
+Exact next step: stop at this completed milestone. Await authorization for Milestone 3 and address saved-membership eligibility before generated snapshots. Last stable commit before this patch: `c7716cd`; completion commit title: `feat: add personalization history reset`.

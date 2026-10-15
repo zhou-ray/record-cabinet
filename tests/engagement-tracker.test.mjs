@@ -130,3 +130,26 @@ test('inspection queued during a playback save is persisted without waiting for 
   assert.equal([...sessions.values()][0].albumId, album.id);
   await tracker.dispose();
 });
+
+test('reset discards failed pending checkpoints and releases ownership without finalizing old history', async () => {
+  const f = fixture(), tracker = f.make();
+  tracker.begin(album); tracker.observe(album, state(0)); await tick(); tracker.observe(album, state(0)); await tick();
+  f.fail(true); f.at(15); tracker.observe(album, state(15)); await tick();
+  tracker.discard(); f.sessions.clear(); f.fail(false);
+  await tracker.flush(); await tracker.dispose(); tracker.observe(album, state(30)); tracker.inspect(album, 'late');
+  assert.equal(f.sessions.size, 0); assert.equal(f.inspections.size, 0);
+  const fresh = f.make(); fresh.begin(album); fresh.observe(album, state(30)); await tick(); fresh.observe(album, state(30)); await tick();
+  assert.equal(f.sessions.size, 1, 'reset releases the old playback lock');
+  await fresh.dispose();
+});
+
+test('a stale generation rejection permanently discards its writer rather than retrying old behavior', async () => {
+  let writes = 0, invalidated = 0, unlocked = 0;
+  const tracker = createEngagementTracker({ userId: 'a'.repeat(64), now: () => 1000, monotonic: () => 0, id: () => 'stale',
+    acquire: async () => () => { unlocked++; }, error: () => assert.fail('reset is not a transient disk error'), invalidated: () => { invalidated++; },
+    store: { async saveSession() { writes++; const error = new Error('reset'); error.name = 'HistoryResetError'; throw error; }, async recordInspection() { assert.fail('discarded inspection'); } },
+  });
+  tracker.begin(album); tracker.observe(album, state(0)); await tick(); tracker.observe(album, state(0)); await tick();
+  await tracker.flush(); tracker.observe(album, state(10)); tracker.inspect(album, 'late'); await tracker.dispose();
+  assert.equal(writes, 1); assert.equal(invalidated, 1); assert.equal(unlocked, 1); assert.equal(tracker.hasPlayback(), false);
+});

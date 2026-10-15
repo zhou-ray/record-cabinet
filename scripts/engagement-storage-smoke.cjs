@@ -31,7 +31,8 @@ const sources = Object.fromEntries(['engagement', 'engagement-storage'].map(name
         return originalPut.call(this, value, ...args);
       };
       const user = 'a'.repeat(64), other = 'b'.repeat(64), albumId = 'spotify:abc';
-      const store = createEngagementStorage(user), peer = createEngagementStorage(user), otherStore = createEngagementStorage(other);
+      const writable = async (user, factory) => { const repo = createEngagementStorage(user, factory); return { ...repo, ...await repo.writer() }; };
+      const store = await writable(user), peer = await writable(user), otherStore = await writable(other);
       await rejects(() => createEngagementStorage('guest'), 'guest denied');
       const inspect = inspection('inspect-1', user, albumId, 1000);
       await Promise.all([store.recordInspection(inspect), peer.recordInspection(inspect)]);
@@ -68,7 +69,7 @@ const sources = Object.fromEntries(['engagement', 'engagement-storage'].map(name
         });
         return request;
       } };
-      await rejects(() => createEngagementStorage(user, faultyFactory).saveSession(startPlaybackSession('failed', user, albumId, 100, 1000)), 'write failure rejects');
+      await rejects(async () => (await writable(user, faultyFactory)).saveSession(startPlaybackSession('failed', user, albumId, 100, 1000)), 'write failure rejects');
       saved = await store.load();
       check(saved.sessions.length === 1 && saved.events.length === 4, 'failed transaction rolls back summary and events');
       await store.saveSession(accumulator.end(92000));
@@ -87,7 +88,8 @@ const sources = Object.fromEntries(['engagement', 'engagement-storage'].map(name
     await page.evaluate(async () => {
       const { createEngagementStorage } = window.engagementTestModules['engagement-storage'];
       const { inspection } = window.engagementTestModules.engagement;
-      const user = 'a'.repeat(64), other = 'b'.repeat(64), first = createEngagementStorage(user), second = createEngagementStorage(other);
+      const user = 'a'.repeat(64), other = 'b'.repeat(64), firstRepo = createEngagementStorage(user), secondRepo = createEngagementStorage(other);
+      const first = { ...firstRepo, ...await firstRepo.writer() }, second = { ...secondRepo, ...await secondRepo.writer() };
       await second.recordInspection(inspection('retained', other, 'spotify:abc', Date.now()));
       await first.prune(Date.now());
       if ((await first.load()).events.length || (await first.load()).sessions.length) throw new Error('Old history was not pruned');
@@ -95,6 +97,60 @@ const sources = Object.fromEntries(['engagement', 'engagement-storage'].map(name
       await first.clear();
       if ((await first.load()).events.length || (await second.load()).events.length !== 1) throw new Error('Account-scoped clear failed');
     });
-    console.log('PASS: real IndexedDB account isolation, idempotent/concurrent writes, stale checkpoint protection, atomic rollback, metadata exclusion, and reload recovery');
+    await page.evaluate(async () => {
+      const { createEngagementStorage } = window.engagementTestModules['engagement-storage'];
+      const { inspection, startPlaybackSession } = window.engagementTestModules.engagement;
+      const user = 'c'.repeat(64), name = `record-cabinet-engagement:${user}`;
+      const check = (value, message) => { if (!value) throw Error(message); };
+      const rejects = async task => { try { await task(); } catch (error) { return error.name; } throw Error('Expected rejection'); };
+      // Simulate an old build that cannot close its v1 database yet.
+      const legacy = await new Promise(resolve => { const r = indexedDB.open(name, 1); r.onupgradeneeded = () => { r.result.createObjectStore('events', { keyPath: 'id' }); r.result.createObjectStore('sessions', { keyPath: 'id' }); }; r.onsuccess = () => resolve(r.result); });
+      await new Promise(resolve => { const tx = legacy.transaction('events', 'readwrite'); tx.objectStore('events').put(inspection('legacy', user, 'spotify:abc', 1000)); tx.oncomplete = resolve; });
+      const repo = createEngagementStorage(user);
+      await rejects(() => repo.reset());
+      legacy.close();
+      check((await repo.load()).events[0].id === 'legacy', 'blocked reset must not clear history later');
+      check(await repo.generation() === 0, 'migration preserves initial generation');
+      await rejects(() => new Promise((resolve, reject) => { const r = indexedDB.open(name, 1); r.onsuccess = () => { r.result.close(); resolve(); }; r.onerror = () => reject(r.error); }));
+      const writer = await repo.writer(), session = startPlaybackSession('old', user, 'spotify:abc', 100, 1000);
+      await writer.saveSession(session);
+      const faulty = { open(...args) {
+        const request = indexedDB.open(...args);
+        request.addEventListener('success', () => {
+          const db = request.result, transaction = db.transaction.bind(db);
+          db.transaction = (...args) => {
+            const tx = transaction(...args), objectStore = tx.objectStore.bind(tx);
+            tx.objectStore = name => { const store = objectStore(name); if (name === 'sessions') store.clear = () => { throw Error('Injected reset failure'); }; return store; };
+            return tx;
+          };
+        }); return request;
+      } };
+      await rejects(() => createEngagementStorage(user, faulty).reset());
+      let saved = await repo.load();
+      check(saved.generation === 0 && saved.events.length === 2 && saved.sessions.length === 1, 'failed reset rolls back marker AND both stores');
+      await writer.recordInspection(inspection('still-valid', user, 'spotify:abc', 1001));
+      await Promise.allSettled([writer.recordInspection(inspection('racing', user, 'spotify:abc', 1002)), repo.reset(), writer.saveSession(session)]);
+      saved = await repo.load();
+      check(saved.generation === 1 && saved.events.length === 0 && saved.sessions.length === 0, 'reset fences racing writes atomically');
+      check(await rejects(() => writer.saveSession(session)) === 'HistoryResetError', 'old session retry fenced');
+      check(await rejects(() => writer.recordInspection(inspection('late', user, 'spotify:abc', 1003))) === 'HistoryResetError', 'old inspection retry fenced');
+      const fresh = await repo.writer();
+      await fresh.recordInspection(inspection('fresh', user, 'spotify:abc', 1004));
+      check((await repo.load()).events[0].id === 'fresh', 'new generation accepts fresh interaction');
+      await Promise.all([repo.reset(), repo.reset()]);
+      check(await repo.generation() === 3 && (await repo.load()).events.length === 0, 'repeated/concurrent resets serialize');
+      window.suspendedWriter = await repo.writer();
+    });
+    const peerPage = await context.newPage(); await peerPage.goto('http://engagement.test/peer');
+    await peerPage.evaluate(async () => { await window.engagementTestModules['engagement-storage'].createEngagementStorage('c'.repeat(64)).reset(); });
+    await page.evaluate(async () => {
+      let rejected = false;
+      try { await window.suspendedWriter.recordInspection(window.engagementTestModules.engagement.inspection('suspended', 'c'.repeat(64), 'spotify:abc', 2000)); } catch (error) { rejected = error.name === 'HistoryResetError'; }
+      if (!rejected) throw Error('Tab without reset notification resurrected history');
+      const other = await window.engagementTestModules['engagement-storage'].createEngagementStorage('b'.repeat(64)).load();
+      if (other.events.length !== 1) throw Error('Reset affected another account');
+    });
+    await peerPage.close();
+    console.log('PASS: real IndexedDB account isolation, idempotent/concurrent writes, stale checkpoint protection, atomic rollback, metadata exclusion, reload recovery, reset migration/blocking/rollback, generation fencing and suspended-tab protection');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
