@@ -2,6 +2,7 @@
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const { createCipheriv, createHash, randomBytes } = require('node:crypto');
 const assert = require('node:assert/strict');
+const fs = require('node:fs/promises');
 const origin = process.env.TEST_ORIGIN || 'http://127.0.0.1:3194';
 const account = 'a'.repeat(64);
 function cookie() {
@@ -57,8 +58,22 @@ function cookie() {
     assert.equal(await page.getByRole('button', { name: 'Tracking debug', exact: true }).count(), 0);
     assert.equal(await page.getByText(/This test build keeps album browsing/).count(), 0);
     assert.equal(await page.evaluate(async () => (await indexedDB.databases()).some(db => db.name?.startsWith('record-cabinet-engagement:'))), false);
+    await page.getByText('Account and privacy', { exact: true }).click();
+    const downloading = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Download My Data', exact: true }).click();
+    const download = await downloading, data = JSON.parse(await fs.readFile(await download.path(), 'utf8'));
+    assert.deepEqual(data.events, []);
+    assert.deepEqual(data.sessions, []);
+    await page.evaluate(async account => {
+     const db = await new Promise(resolve => { const r = indexedDB.open(`record-cabinet-engagement:${account}`); r.onsuccess = () => resolve(r.result); });
+     await new Promise(resolve => { const tx = db.transaction('events', 'readwrite'); tx.objectStore('events').put({ id: 'retained-inspection', userId: account, type: 'album_inspected', albumId: 'spotify:old', timestamp: 1000 }); tx.oncomplete = resolve; }); db.close();
+    }, account);
+    const retainedDownload = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Download My Data', exact: true }).click();
+    const retained = JSON.parse(await fs.readFile(await (await retainedDownload).path(), 'utf8'));
+    assert.equal(retained.events[0].id, 'retained-inspection', 'disabled tracking still permits export of old history');
     assert.deepEqual(errors, []); await context.close();
-    console.log(`PASS: authenticated default build creates no engagement database at ${width}px`);
+    console.log(`PASS: no automatic history collection; empty and retained-history downloads work with tracking disabled at ${width}px`);
     continue;
    }
    await page.evaluate(async account => {
@@ -134,6 +149,37 @@ function cookie() {
    const otherTab = await context.newPage(); await otherTab.goto(origin + '/__engagement_probe');
    const canOwn = () => otherTab.evaluate(account => navigator.locks.request(`record-cabinet-engagement:${account}`, { ifAvailable: true }, lock => !!lock), account);
    assert.equal(await canOwn(), false, 'a second tab cannot own the active session');
+   await page.evaluate(() => { window.playerBeforeExport = window.mockPlayer; });
+   await page.getByRole('link', { name: 'Library & settings', exact: true }).click();
+   await page.getByText('Account and privacy', { exact: true }).click();
+   const organizationKey = `record-cabinet-systems:${account}`;
+   const org = { arrangement: 'artist', systemId: 'test-system', systems: [{ id: 'test-system', name: 'My bins', bins: [{ id: 'test-bin', label: 'Favorites' }], assignments: { 'spotify:smoke': 'test-bin' } }] };
+   await page.evaluate(({ organizationKey, org }) => localStorage.setItem(organizationKey, JSON.stringify(org)), { organizationKey, org });
+   await page.evaluate(async () => {
+    const db = await new Promise(resolve => { const r = indexedDB.open(`record-cabinet-engagement:${'b'.repeat(64)}`, 1); r.onupgradeneeded = () => { r.result.createObjectStore('events', { keyPath: 'id' }); r.result.createObjectStore('sessions', { keyPath: 'id' }); }; r.onsuccess = () => resolve(r.result); });
+    await new Promise(resolve => { const tx = db.transaction('events', 'readwrite'); tx.objectStore('events').put({ id: 'other-account-event', userId: 'b'.repeat(64), type: 'album_inspected', albumId: 'spotify:other', timestamp: 1000 }); tx.oncomplete = resolve; }); db.close();
+   });
+   const beforeExport = await read(), cookiesBeforeExport = await context.cookies();
+   const downloading = page.waitForEvent('download');
+   await page.getByRole('button', { name: 'Download My Data', exact: true }).click();
+   const download = await downloading, exported = JSON.parse(await fs.readFile(await download.path(), 'utf8'));
+   assert.match(download.suggestedFilename(), /^record-cabinet-my-data-.*\.json$/);
+   assert.equal(exported.library.length, 2);
+   assert.deepEqual(exported.events.map(e => e.id).sort(), beforeExport.events.map(e => e.id).sort());
+   assert.equal(exported.sessions[0].id, playingSession);
+   assert.deepEqual(exported.organization.systems[0].memberships, [{ albumId: 'spotify:smoke', binId: 'test-bin', assignedAt: null }]);
+   assert.equal(JSON.stringify(exported).includes('other-account-event'), false);
+   assert.equal(JSON.stringify(exported).includes(account), false);
+   assert.deepEqual(await context.cookies(), cookiesBeforeExport, 'export leaves sign-in unchanged');
+   assert.deepEqual((await read()).events, beforeExport.events, 'export does not modify history');
+   await page.evaluate(key => localStorage.setItem(key, 'invalid organization json'), organizationKey);
+   await page.getByRole('button', { name: 'Download My Data', exact: true }).click();
+   await page.getByText('Your data could not be exported. Nothing was changed. Please try again.', { exact: true }).waitFor();
+   assert.equal((await read()).sessions.length, 1);
+   await page.evaluate(({ organizationKey, org }) => localStorage.setItem(organizationKey, JSON.stringify(org)), { organizationKey, org });
+   assert.equal(await page.evaluate(() => window.playerBeforeExport === window.mockPlayer && !window.mockPlayer.state.paused), true, 'export and export failure leave audio alone');
+   await page.getByText('Account and privacy', { exact: true }).click();
+   await page.getByRole('link', { name: '← Back to records', exact: true }).click();
    await page.getByRole('button', { name: 'Pause record', exact: true }).click();
    await page.waitForTimeout(100);
    assert.equal(await canOwn(), true, 'pause releases ownership');
@@ -184,7 +230,7 @@ function cookie() {
    assert.equal(cleared.events.length, 0); assert.equal(cleared.sessions.length, 0);
    assert.deepEqual(errors, []);
    await context.close();
-   console.log(`PASS: pointer/keyboard inspection, confirmed playback, 75% once, tab ownership, navigation, reload, demo exclusion and local removal at ${width}px`);
+   console.log(`PASS: pointer/keyboard inspection, playback, ownership, account-scoped download and error recovery, navigation, reload and local removal at ${width}px`);
   }
  } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

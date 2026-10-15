@@ -1323,3 +1323,10 @@ The runtime coordinator uses an account/origin Web Lock to avoid competing playb
 History remains local. Retention runs on activation/hourly (one year; up to 10,000 events and 2,000 sessions at maintenance). Existing account removal includes history and drains active writes; dedicated history-only reset/export is reserved for Milestone 2. Enabled test builds explain local collection. Public activation/provider review is not part of this rollout and the production flag remains off.
 
 See the current progress document for verified behavior and limitations, particularly conservative undercounting, canonical identity failures, retention boundaries, saved-membership eligibility, and lack of cross-device tracking synchronization.
+
+
+## Milestone 2 export decision record (partial, 2026-10-14)
+
+Download My Data is a separate version-1 `record-cabinet-personalization` JSON export, not the existing restorable `record-cabinet` collection backup. It reads this account's committed local history, album references and personal-bin memberships without provider/cloud requests, stopping playback or changing history. Event and session timestamps are UTC ISO strings; listening/coverage units are seconds. Unknown album-added/bin-created/membership-assigned times are null, never inferred from export time. Generated-bin history/feedback explicitly remain unimplemented. Account hashes, credentials, arbitrary metadata and raw player payloads are not exported. Fields are explicitly selected and mixed-account/malformed history fails closed.
+
+Export is available with tracking enabled or disabled. It may omit pending/failed writes and unsaved current listening; independent local stores are not a globally atomic snapshot. The privacy UI states these limits and distinguishes it from Collection backup. No history-only reset or cross-tab reset fence has been added at this checkpoint. Milestone 2 remains incomplete; continue with reset according to discovery-progress.md and do not begin Milestone 3.
