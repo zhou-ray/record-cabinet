@@ -277,10 +277,11 @@ export default function RecordBin({ collection, genreEditing, onGenreUpdate }: {
   }
 
   function randomRecord() {
-    if (!allRecords) return;
-    const id = randomPicker.current(allRecords.albums.map(record => record.id), activeBin ? album?.id : undefined);
+    const selection = activeBin ?? allRecords;
+    if (!selection) return;
+    const id = randomPicker.current(selection.albums.map(record => record.id), activeBin ? album?.id : undefined);
     if (!id) return;
-    openBin(allRecords, allRecords.albums.findIndex(item => item.id === id), true);
+    openBin(selection, selection.albums.findIndex(item => item.id === id), true);
   }
 
   function backToShelf() {
