@@ -73,7 +73,7 @@ function load(indexedDB) {
   const cloudCode = ts.transpileModule(fs.readFileSync('app/lib/cloud-library.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText;
   vm.runInThisContext(`(function(module,exports,require){${cloudCode}\n})`)(cloud,cloud.exports,name=>name === './spotify-export' ? exportHelper.exports : {});
   const compiled = { exports: {} };
-  vm.runInThisContext(`(function(module,exports,indexedDB,require){${output}\n})`)(compiled, compiled.exports, indexedDB, name => name === "./auto-genres" ? loadHelper("app/lib/auto-genres.ts") : name === "./spotify-export" ? exportHelper.exports : name === "./cloud-library" ? cloud.exports : helper.exports);
+  vm.runInThisContext(`(function(module,exports,indexedDB,require){${output}\n})`)(compiled, compiled.exports, indexedDB, name => name === "./saved-membership" ? loadHelper("app/lib/saved-membership.ts") : name === "./auto-genres" ? loadHelper("app/lib/auto-genres.ts") : name === "./spotify-export" ? exportHelper.exports : name === "./cloud-library" ? cloud.exports : helper.exports);
   return compiled.exports;
 }
 const album = (id, title = id) => ({ id: `spotify:${id}`, source: 'spotify', title, playback: {kind:'spotify',uri:`spotify:album:${id}`}, tracks: [{ id: `track:${id}`, title: 'Track' }] });
@@ -309,4 +309,22 @@ test('first addition date survives duplicate imports and metadata saves', async(
  assert.equal((await store.load()).albums[0].addedAt,1000);
  await store.saveAlbum(album('new'));
  assert.ok((await store.load()).albums.find(a=>a.id==='spotify:new').addedAt>0);
+});
+
+test('membership persists separately, rejects mixed accounts and late observations, and clears with the library', async () => {
+ const factory = database(); const account = 'a'.repeat(64);
+ const store = load(factory).createLibraryStorage(account);
+ await store.saveAlbum(album('a'));
+ const original = await store.load();
+ const batch = (saved, checkedAt) => ({accountId:account,records:[{albumId:'spotify:a',saved,checkedAt,source:'spotify-library-contains'}]});
+ await store.saveMembership(batch(true,100));
+ await store.saveMembership(batch(false,200));
+ await store.saveMembership(batch(true,100));
+ assert.equal((await load(factory).createLibraryStorage(account).loadMembership())[0].saved,false);
+ assert.deepEqual(await store.load(),original,'membership never mutates collection data');
+ assert.throws(()=>store.saveMembership({...batch(true,300),accountId:'b'.repeat(64)}));
+ factory.failNextWrite();
+ await assert.rejects(store.saveMembership(batch(true,300)));
+ assert.equal((await store.loadMembership())[0].checkedAt,200);
+ await store.clear(); assert.deepEqual(await store.loadMembership(),[]);
 });

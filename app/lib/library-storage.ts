@@ -1,3 +1,4 @@
+import { checkedMembershipBatch, mergeMembership, readMembershipCache, type MembershipBatch, type SavedMembership } from "./saved-membership";
 import type { RequestUsage } from "./request-usage";
 import { genreLookupKey, needsAutoGenres, type GenreLookup } from "./auto-genres";
 import { hydratedAlbum, matchingExportAlbum, spotifyLibraryId } from "./spotify-export";
@@ -52,6 +53,20 @@ function queueImportedGenres(tx: IDBTransaction, albums: Album[]) {
   request.onsuccess = () => settings.put([...new Set([...(request.result ?? []), ...ids])], "genre-import-queue");
 }
 return {
+  loadMembership(): Promise<SavedMembership[]> {
+    return transaction(["settings"], "readonly", tx => {
+      const request = tx.objectStore("settings").get("saved-membership");
+      return () => readMembershipCache(request.result, scope);
+    });
+  },
+  saveMembership(batch: MembershipBatch): Promise<void> {
+    const checked = checkedMembershipBatch(batch, scope);
+    return transaction(["settings"], "readwrite", tx => {
+      const settings = tx.objectStore("settings"), request = settings.get("saved-membership");
+      request.onsuccess = () => settings.put(mergeMembership(readMembershipCache(request.result, scope), checked.records), "saved-membership");
+      return () => undefined;
+    }, false); // Local provider metadata, not a cloud/library mutation.
+  },
   recordRequestUsage(usage: RequestUsage, day = new Date().toISOString().slice(0, 10)): Promise<void> {
     return transaction(["settings"], "readwrite", tx => {
       const settings = tx.objectStore("settings"), request = settings.get("request-usage");

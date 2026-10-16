@@ -2,9 +2,9 @@
 
 ## Current milestone
 
-Milestone 2 — Privacy Controls and Data Export.
+Milestone 3 — Generated-bin Framework.
 
-**Status: Complete — Download My Data and Reset Personalization History implemented and verified.** Stopped at the Milestone 2 boundary. Do not start Milestone 3 without the next authorization. See the completion record below; older dated sections describe previous checkpoints.
+**Status: In progress — saved-membership eligibility checkpoint complete; generated bins are not implemented yet.** User authorized Milestone 3 on 2026-10-16. Stop at the verified eligibility boundary this session; continue Milestone 3 only next time. Milestone 2 is complete and pushed to GitHub.
 
 Set `NEXT_PUBLIC_ENGAGEMENT_ENABLED=true` **at build time** to exercise instrumentation. It is deliberately off in ordinary builds and `.env.example` pending provider-release review. The 2026-10-15 deployment includes these controls with collection explicitly disabled; see the latest deployment entry below.
 
@@ -96,23 +96,29 @@ The previous foundation remains in `app/lib/engagement.ts` and `tests/engagement
 3. **Device-local:** Web Locks coordinate same-origin tabs only, not different devices. No cross-device aggregate or sync exists; future sync needs deliberate session/reset semantics.
 4. **Unresolved imports:** inspection is deferred until album identity resolves within the selected opening; failed/cancelled resolution does not create a canonical event. Manual/demo records are intentionally excluded. Track availability changes during a session conservatively interrupt counting if the duration denominator changes.
 5. **Retention:** events and sessions are pruned independently at activation/hourly maintenance. Do not assume unlimited historical coverage, or that every retained event has a retained session. Active memory retry is capped; persistent storage failure can lose events once capped or the tab closes.
-6. **Saved-only discovery eligibility remains unresolved:** imports from playlists/Liked Songs and cached saved provenance are not authoritative current Spotify saved membership. Address before Milestone 3/4; do not infer eligibility from collected behavior.
+6. **Saved-only discovery eligibility:** bounded provider check, separate local cache and pure eligibility rules now exist. They are not connected to UI/orchestration yet. Imports/provenance never qualify on their own. Membership is a last-verified observation with seven-day expiry, not a live guarantee; future discovery must recheck unknown/expired entries and exclude known removals.
 7. **Personal-bin action tracking is deferred:** it is not part of Milestone 1's enumerated inspect/play/duration/completion acceptance list. Existing personal memberships remain available as optional signals; event integration belongs with organizational work before scoring uses it.
 8. **Local history controls:** Download My Data exports saved history, album references and bins. Reset deletes only this account’s local behavioral history and pending writes, preserving collection and sign-in. Other devices and already-downloaded files are unaffected. The separate data export is not restorable. Older schema-v1 tabs must reload after the upgrade; a blocked reset reports failure without clearing history.
 
 ## Not yet implemented
 
-Milestone 2 is complete. Milestones 3–8 remain untouched: saved-membership reconciliation; generated-bin snapshots; cold-start heuristics; scoring/assignment; generated-bin feedback; evaluation; polish. No recommendation logic added.
+Milestone 2 is complete. Milestone 3 has the membership prerequisite implemented; client reconciliation, persisted generated snapshots and all three generated bins remain. Milestones 4–8 are untouched. No recommendation scoring or cold-start tuning added.
 
 ## Exact next step
 
-STOP here. On the next authorized continuation, read both discovery documents and git status, then begin **Milestone 3 only**. First resolve the documented saved-membership eligibility prerequisite: playlist/Liked Songs imports are not proof of Spotify saved-album membership. Define explicit membership/source/verification timestamps and unknown/removed behavior before generating eligible snapshots. Do not add behavioral scoring from later milestones or enable public collection automatically.
+Continue **Milestone 3 only**, starting from the saved-membership checkpoint:
+
+1. Read both discovery documents and Git status. Keep tracking default-off and do not deploy/push without authorization.
+2. Add account-scoped client orchestration using `nextMembershipBatch`, POST `/api/spotify/library` with `{ membershipAlbumIds }`, and `saveMembership`. At most 40 unique albums per request. Use account-context fetch, explicit cancellation/account-generation protection, no retries on cooldown/unknown failures, and an honest partial/error state. No provider call on every browse/render. Ensure pending responses cannot repopulate data after broad account deletion or switching accounts.
+3. Add the generated snapshot repository and simple assignment framework: three bins, at most 20 albums each, zero overlap, stable order, generated/expiry timestamps and seven-day lifetime. Define invalidation after membership refresh: remove ineligible IDs while preserving remaining order. No hidden re-fill/re-shuffle every visit. Keep Forgotten Favorites honest without sufficient history; Milestone 4 owns heuristic tuning.
+4. Integrate the three native-looking bin entries and short blurbs without altering alphabetical/custom organization, playback or bin browsing. Handle small/empty/unknown saved libraries. Connect generated state to export/reset/local deletion before shipping it; membership itself is provider library metadata, not behavioral history.
+5. Test reload/expiry/concurrency/account isolation/removal, zero overlap and unchanged library/playback; run tests/lint/typecheck/build, update handoff, commit and STOP before Milestone 4.
 
 ## Last known stable commit
 
-- Before this completion: `c7716cd` (`fix: ignore system next and previous track controls`).
-- This tested completion is titled `feat: add personalization history reset`; use `git log -1` for its hash after commit.
-- No push, deployment, public tracking activation or Milestone 3 work in this session.
+- Before Milestone 3: `5af5c4b` (`docs: record mobile playback correction deployment`), pushed to GitHub. The app code is live with tracking disabled.
+- This tested eligibility checkpoint is titled `feat: add verified saved-album eligibility`; obtain its hash from git log after commit.
+- No push, deployment, tracking activation or later-milestone work in this session.
 
 ## Milestone 1 correction — browsing during playback (2026-10-08)
 
@@ -262,3 +268,20 @@ Live phone testing showed the native integration disable caused generic “Spoti
 User reports extra Play required after selecting a new record. Found that `playAlbum` can await cache/availability/provider work before activating the connected audio element. Added synchronous `activateFromGesture` at the vinyl-click entry before those waits; retains normal first-connection handling and no retry of uncertain playback mutations. First connections/reconnections may still need another tap; iOS must verify improvement. Changed `app/record-bin.tsx`, `app/use-spotify-player.ts`, `app/lib/spotify-browser.ts`, `app/lib/media-session.ts`, both playback/media unit tests and navigation smoke. Tests: 237 unit checks, lint, production webpack build/typecheck; desktop/mobile navigation/transport/tonearm regression. Tracking remains off; Milestone 3 untouched. Last stable commit: `4cd520e`. Next: verify native artwork and switching records on the phone after deployment; do not describe lock-screen behavior as automatically proven.
 
 Deployed the mobile correction from `3beca46` as `dpl_EoP3KAbq4cEtSKnGJAMV8mq6ipUT` to the existing production alias, with tracking disabled. Live served code confirms native metadata enabled and early activation present. Phone retest remains the next step; no Milestone 3 changes.
+
+## Milestone 3 saved-membership checkpoint (2026-10-16)
+
+Completed the prerequisite as a clean sub-boundary; Milestone 3 is NOT complete and no discovery bins are visible yet.
+
+- Pure eligibility module identifies canonical Spotify album playback URIs (including resolved exports), excludes manual/demo/unresolved records, and never infers membership from import source, liking a track or Spotify metadata. Duplicate editions with the same canonical ID qualify once; collection order is preserved.
+- `POST /api/spotify/library` accepts `{ membershipAlbumIds: ["spotify:..."] }`, validates at most 40 inputs and deduplicates them. Uses current `/v1/me/library/contains?uris=...`, existing account/origin checks, token refresh, shared request pacing/cooldown and metadata usage accounting. No album/track requests, no provider mutations, no public caching. Unsuccessful or malformed responses do not produce negative membership records. The default UI does not invoke this route option yet, so no new background requests.
+- Each observation stores canonical album ID, boolean saved status, request-start timestamp and fixed source. Cache lives in the account's existing library/settings store, independently of albums/organization/cloud. Concurrent stale responses cannot overwrite newer observations; equal-time conflicts prefer not-saved. Corrupt caches fail closed; broad account removal clears membership. No schema migration or new infrastructure.
+- Fresh positive checks qualify; fresh negatives do not. Missing, future-dated or seven-day-old observations are unknown. Batch planning skips fresh positive and negative checks, allowing future interrupted reconciliation to resume without rechecking every album. Never delete cabinet records because Spotify returns false.
+
+Files: `app/lib/saved-membership.ts` (new); `app/api/spotify/library/route.ts`; `app/lib/library-storage.ts`; `tests/saved-membership.test.mjs` (new); `tests/library-storage.test.mjs`; `tests/spotify-requests.test.mjs`; `scripts/membership-storage-smoke.cjs` (new); both discovery documents.
+
+Checks: 242 Node tests PASS; lint PASS; production webpack build/typecheck PASS; diff check PASS. Real Chrome IndexedDB smoke PASS: persisted membership after reload, concurrent stale response protection, injected write failure rollback, separate accounts, unchanged albums and scoped deletion. Route tests cover bounded/deduplicated URI queries, origin/session/account refusal, malformed provider data and 429 propagation. No live Spotify requests, no personal data used, no push/deploy.
+
+Known limits: no client reconciliation UI, no snapshot persistence/rendering, no scoring. Seven-day freshness is a deliberate maximum cache age, not real-time membership assurance. A new observation saying not-saved must filter future/existing snapshots on the next client refresh; unsaves cannot be known while offline. Membership is device-local and not included in backups/cloud sync; future exports may include verification metadata as library data. Pending reconciliation cancellation/reset fencing must be designed when wiring the client; there is currently no pending client reconciliation to cancel. Old saved-import provenance is not backfilled as evidence. Native lock-screen/extra-tap issues remain parked as requested.
+
+Exact next step: client reconciliation plus generated snapshot/UI work listed at the top. Stay within Milestone 3. Last stable commit before this checkpoint: `5af5c4b`.

@@ -9,11 +9,12 @@ function load(file, dependencies = {}) {
   if (file.includes('/api/')) {
     dependencies['../../../lib/spotify-shared-gate'] = { acquireSpotifySlot: async () => {}, recordSpotifyLimit: async () => {} };
     dependencies['../../../lib/spotify-errors'] = load('app/lib/spotify-errors.ts', { './spotify-requests': helpers });
-    if (dependencies['../../../lib/spotify-session']) dependencies['../../../lib/spotify-session'].accountMatches = () => true;
+    if (dependencies['../../../lib/spotify-session']) dependencies['../../../lib/spotify-session'].accountMatches ??= () => true;
   }
   const output = ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const result = { exports: {} };
   vm.runInThisContext(`(function(require,module,exports){${output}\n})`)(name => {
+    if (name.endsWith('/saved-membership')) return load('app/lib/saved-membership.ts');
     if (name.endsWith('/playlist-preview')) return load('app/lib/playlist-preview.ts');
     if (!(name in dependencies)) throw new Error(`Unexpected dependency: ${name}`);
     return dependencies[name];
@@ -319,4 +320,29 @@ test('playlist listing follows every page, deduplicates IDs, and fails instead o
  const body=await response.json();assert.equal(body.playlists.length,101);assert.equal(body.playlists.at(-1).id,'p100');assert.equal(body.playlists[0].name,'Updated');assert.equal(calls.length,3);
  const warn=console.warn;console.warn=()=>{};
  try {for(mode of ['failure','unsafe','loop']){calls.length=0;const failed=await route.GET(request());assert.notEqual(failed.status,200);assert.equal((await failed.json()).playlists,undefined);assert.equal(calls.length,mode==='failure'?2:1);}}finally{console.warn=warn;}
+});
+
+test('saved membership route is bounded, account scoped, and does not load album details', async () => {
+ const accountId='a'.repeat(64); let authenticated=true, matching=true, mode='ok'; const calls=[];
+ const route=load('app/api/spotify/library/route.ts',{
+  'next/server':{NextResponse},'../../../lib/genres':load('app/lib/genres.ts'),
+  '../../../lib/spotify-album-link':load('app/lib/spotify-album-link.ts'),
+  '../../../data/spotify':load('app/data/spotify.ts',{'../lib/genres':load('app/lib/genres.ts')}),
+  '../../../lib/spotify-session':{getSession:async()=>authenticated?{accountId,accessToken:'mock',expiresAt:Date.now()+3600000}:null,accountMatches:()=>matching,config:()=>({origin:'http://localhost'})},
+  '../../../lib/spotify-requests':{...helpers,createSpotifyRequester:()=>async url=>{calls.push(url);if(mode==='limit')throw new helpers.SpotifyError(429,'60');return mode==='bad'?[true]:[true,false];}},
+ });
+ const post=(ids,origin='http://localhost')=>route.POST(new Request('http://localhost/api/spotify/library',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({membershipAlbumIds:ids})}));
+ const ids=['spotify:a','spotify:b','spotify:a'];
+ const response=await post(ids);assert.equal(response.status,200);
+ const data=await response.json();assert.equal(data.accountId,accountId);assert.deepEqual(data.records.map(r=>r.saved),[true,false]);
+ assert.equal(calls.length,1);assert.equal(new URL(calls[0]).pathname,'/v1/me/library/contains');
+ assert.equal(new URL(calls[0]).searchParams.get('uris'),'spotify:album:a,spotify:album:b');
+ assert.match(response.headers.get('cache-control'),/no-store/);
+ calls.length=0;
+ for(const invalid of [[],Array(41).fill('spotify:a'),['spotify:track:a'],['https://example.com']])assert.equal((await post(invalid)).status,400);
+ assert.equal((await post(ids,'https://elsewhere.test')).status,403);
+ authenticated=false;assert.equal((await post(ids)).status,401);authenticated=true;
+ matching=false;assert.equal((await post(ids)).status,409);matching=true;assert.equal(calls.length,0);
+ const warn=console.warn;console.warn=()=>{};
+ try{for(mode of ['bad','limit']){const failed=await post(ids);assert.notEqual(failed.status,200);assert.equal((await failed.json()).records,undefined);}}finally{console.warn=warn;}
 });

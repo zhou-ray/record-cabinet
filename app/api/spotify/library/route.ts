@@ -1,3 +1,4 @@
+import { checkSavedMembership, membershipIds } from "../../../lib/saved-membership";
 import { checkPlaylistPage, PlaylistIdentityError } from "../../../lib/playlist-preview";
 import { acquireSpotifySlot, recordSpotifyLimit } from "../../../lib/spotify-shared-gate";
 import { spotifyFailure } from "../../../lib/spotify-errors";
@@ -23,6 +24,12 @@ export async function POST(request: Request) {
   let payload: unknown;
   try { payload = await request.json(); }
   catch { return NextResponse.json({ error: "Invalid import request." }, { status: 400 }); }
+  if (payload && typeof payload === "object" && "membershipAlbumIds" in payload) {
+    let ids: string[];
+    try { ids = membershipIds(payload.membershipAlbumIds); }
+    catch { return NextResponse.json({ error: "Choose one to forty Spotify albums." }, { status: 400 }); }
+    return importLibrary(request, [], { membershipAlbumIds: ids });
+  }
   if (payload && typeof payload === "object" && "previewPlaylist" in payload) {
     if (typeof payload.previewPlaylist !== "string" || !/^[a-zA-Z0-9]{1,64}$/.test(payload.previewPlaylist)) return NextResponse.json({ error: "Invalid playlist." }, { status: 400 });
     return importLibrary(request, [], { previewPlaylist: payload.previewPlaylist });
@@ -61,7 +68,7 @@ export async function POST(request: Request) {
   if (source.startsWith("playlist:") && (typeof body.confirmedSnapshot !== "string" || !body.confirmedSnapshot || body.confirmedSnapshot.length > 512)) return NextResponse.json({ error: "Preview this playlist before importing." }, { status: 400 });
   return importLibrary(request, [...new Set(ids)], { confirmedSnapshot: typeof body.confirmedSnapshot === "string" ? body.confirmedSnapshot : undefined, batchSize, checkpoint, maxPages: 5, completedSnapshot: typeof body.completedSnapshot === "string" && body.completedSnapshot.length <= 512 ? body.completedSnapshot : undefined });
 }
-async function importLibrary(request: Request, knownAlbumIds: string[] = [], options: { previewPlaylist?: string; confirmedSnapshot?: string; search?: string; genreArtists?: string[]; albumId?: string; trackId?: string; batchSize?: number; checkpoint?: ImportCheckpoint | null; maxPages?: number; completedSnapshot?: string } = {}) {
+async function importLibrary(request: Request, knownAlbumIds: string[] = [], options: { membershipAlbumIds?: string[]; previewPlaylist?: string; confirmedSnapshot?: string; search?: string; genreArtists?: string[]; albumId?: string; trackId?: string; batchSize?: number; checkpoint?: ImportCheckpoint | null; maxPages?: number; completedSnapshot?: string } = {}) {
   let session = await getSession();
   const headers = { "Cache-Control": "private, no-store, no-transform" };
   if (!session) return NextResponse.json({ error: "Connect Spotify to load your saved albums." }, { status: 401, headers });
@@ -94,9 +101,9 @@ async function importLibrary(request: Request, knownAlbumIds: string[] = [], opt
     let onWait: ((wait: SpotifyWait | null) => void) | undefined;
     const sendSpotify = async (url: string, signal?: AbortSignal) => {
       const path = new URL(url).pathname;
-      lastRequest = path.startsWith("/v1/tracks/") ? "export-track" : path.endsWith("/tracks") && path.startsWith("/v1/albums/") ? "album-tracks" : path.startsWith("/v1/albums/") ? "album-details" : path.startsWith("/v1/playlists/") ? "playlist-items" : path === "/v1/me/tracks" ? "liked-songs" : path === "/v1/me/albums" ? "saved-albums" : "playlists";
+      lastRequest = path === "/v1/me/library/contains" ? "saved-membership" : path.startsWith("/v1/tracks/") ? "export-track" : path.endsWith("/tracks") && path.startsWith("/v1/albums/") ? "album-tracks" : path.startsWith("/v1/albums/") ? "album-details" : path.startsWith("/v1/playlists/") ? "playlist-items" : path === "/v1/me/tracks" ? "liked-songs" : path === "/v1/me/albums" ? "saved-albums" : "playlists";
       const send = () => {
-        const category = options.albumId || options.trackId || options.genreArtists ? "metadata" : options.search ? "search" : "import";
+        const category = options.membershipAlbumIds || options.albumId || options.trackId || options.genreArtists ? "metadata" : options.search ? "search" : "import";
         usage[category]++; reportUsage?.();
         console.info("spotify_request", { category, stage: lastRequest });
         return fetch(url, { headers: { Authorization: `Bearer ${session!.accessToken}` }, cache: "no-store", signal: AbortSignal.any([signal ?? request.signal, AbortSignal.timeout(20000)]) });
@@ -106,6 +113,12 @@ async function importLibrary(request: Request, knownAlbumIds: string[] = [], opt
       return response;
     };
     const spotifyRequest = createSpotifyRequester(sendSpotify, gate, { acquire: signal => acquireSpotifySlot(signal, wait => onWait?.(wait)), onLimit: recordSpotifyLimit, maxRetries: 1, onWait: wait => onWait?.(wait), onRequest: attempt => onRequest?.(attempt) });
+    if (options.membershipAlbumIds) {
+      lastRequest = "saved-membership";
+      const membershipRequest = createSpotifyRequester(sendSpotify, gate, { acquire: signal => acquireSpotifySlot(signal, undefined, true), onLimit: recordSpotifyLimit, maxRetries: 0, failOnCooldown: true });
+      const batch = await checkSavedMembership(options.membershipAlbumIds, session.accountId!, membershipRequest, request.signal);
+      return NextResponse.json(batch, { headers: usageHeaders() });
+    }
     // Optional genre lookups must not hold a saved album behind a long cooldown.
     const genreRequest = createSpotifyRequester(sendSpotify, gate, { acquire: signal => acquireSpotifySlot(signal, undefined, true), onLimit: recordSpotifyLimit, maxRetries: 0, failOnCooldown: true });
     const genreShared = globalThis as typeof globalThis & { spotifyGenreCache?: GenreCache };
