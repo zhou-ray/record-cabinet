@@ -222,6 +222,11 @@ export function useSpotifyPlayer(beforePlay?: () => void, engagement?: Engagemen
       setNotice("Player connected. Choose a record when you’re ready.");
     });
   }
+  // Call directly in the vinyl click handler, before album/cache/network awaits.
+  // A not-yet-connected SDK still needs its normal first-connection path.
+  function activateFromGesture() {
+    void sdk.current?.player.activateElement().catch(() => {});
+  }
   async function start(next: Album) {
     recordPlaybackEvent("starting");
     if (next.playback.kind !== "spotify" || !next.tracks.length || inFlight.current || Date.now() < retryAt) return false;
@@ -232,7 +237,7 @@ export function useSpotifyPlayer(beforePlay?: () => void, engagement?: Engagemen
     pendingSeek.current = null;
     selected.current = next; setAlbum(next); queuedCue.current = null;
     setState(null); setPosition(0); setUpdatedAt(Date.now()); preparing.current = true;
-    void sdk.current?.player.activateElement().catch(() => {});
+    activateFromGesture();
     try {
       const succeeded = await run(async () => { beforePlay?.(); await reconnectRecord(next, 0); });
       if (!succeeded) engagement?.end();
@@ -343,5 +348,5 @@ export function useSpotifyPlayer(beforePlay?: () => void, engagement?: Engagemen
       catch { setVolumeState(previous); throw new Error("Volume could not change. Try again or use your device’s volume controls."); }
     }, true);
   }
-  return { album, state, ended, updatedAt, position, busy, error, reconnect, retryAt, notice, volume, setVolume, restart, prepare, start, pause, eject, resume, refresh, seek };
+  return { album, state, ended, updatedAt, position, busy, error, reconnect, retryAt, notice, volume, setVolume, restart, prepare, activateFromGesture, start, pause, eject, resume, refresh, seek };
 }

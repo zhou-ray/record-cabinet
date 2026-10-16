@@ -11,7 +11,8 @@ test('system transport respects allowed actions, uses album positions and clears
  const handlers={},calls=[];let allowed=true;
  const session={setActionHandler:(action,fn)=>{handlers[action]=fn;}};
  const cleanup=installMediaControls(session,{play:()=>calls.push('play'),pause:()=>calls.push('pause'),seek:n=>calls.push(n),position:()=>100,canPlay:()=>allowed,canPause:()=>allowed,canSeek:()=>allowed});
- handlers.play();handlers.pause();handlers.seekto({seekTime:180});handlers.seekbackward({seekOffset:15});handlers.seekforward({});
+ handlers.play();handlers.pause();handlers.seekto({seekTime:180});
+ assert.equal(handlers.seekbackward,null);assert.equal(handlers.seekforward,null);
  handlers.nexttrack();handlers.previoustrack();
  assert.deepEqual(calls,['play','pause',180]);
  allowed=false;handlers.play();handlers.pause();handlers.seekto({seekTime:5});assert.equal(calls.length,3);

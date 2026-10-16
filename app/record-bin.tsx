@@ -203,6 +203,7 @@ export default function RecordBin({ collection, genreEditing, onGenreUpdate }: {
   const availabilityAttempts = useRef(new Set<string>());
   async function playAlbum() {
     if (album.playback.kind === "none" || preparation.current) return;
+    if (album.playback.kind === "spotify" || album.playback.kind === "spotify-pending") spotifyPlayer.activateFromGesture();
     let ready = album;
     const requiredDetails = needsAlbumDetails(album);
     if (requiredDetails || (needsAvailabilityRefresh(album) && !availabilityAttempts.current.has(album.id))) {

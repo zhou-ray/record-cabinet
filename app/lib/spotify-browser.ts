@@ -32,8 +32,8 @@ export async function connectBrowserPlayer(onState: (state: BrowserPlayback | nu
     let ready = false;
     // Safari may choose the SDK's audio frame as its Now Playing source.
     // Publish native metadata there as well as our album-level parent session.
-    // The app owns album metadata and transport handlers; SDK handlers can override them.
-    const player = new window.Spotify!.Player({ name: "Record Cabinet", volume, enableMediaSession: false, getOAuthToken: callback => {
+    // Native metadata and native transport are coupled in Spotify’s SDK.
+    const player = new window.Spotify!.Player({ name: "Record Cabinet", volume, enableMediaSession: true, getOAuthToken: callback => {
       void apiFetch("/api/spotify/player/token", { cache: "no-store", signal }).then(async response => {
         const data = await response.json();
         if (!response.ok) { onError(data.error || "Reconnect Spotify to play here.", true); throw new Error(data.error || "Reconnect Spotify to play here."); }

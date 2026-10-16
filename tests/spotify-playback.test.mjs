@@ -188,7 +188,7 @@ test('browser SDK handles expired sign-in, account errors, lost device, and tear
 // A small hook runner lets us exercise command races without contacting Spotify.
 function playerHarness() {
   const slots = []; let cursor = 0; let api; let onState; let onError;
-  let connections = 0;
+  let connections = 0; let activations = 0;
   const calls = []; let responder = () => Response.json({ accepted: true });
   let pauseFails = false; let pauses = 0; let sdkState = null; let volumeFails = false; const volumes = [];
   const react = {
@@ -196,7 +196,7 @@ function playerHarness() {
     useRef(initial) { const index = cursor++; if (!(index in slots)) slots[index] = { current: initial }; return slots[index]; },
     useEffect() {}, useEffectEvent(fn) { return fn; },
   };
-  const device = { deviceId: 'browser', player: { getCurrentState: async () => sdkState, activateElement: async () => {}, pause: async () => { pauses++; if (pauseFails) throw new Error('Pause failed'); sdkState = { ...(sdkState || { position: 0, duration: 100000, track_window: { current_track: { uri: 'spotify:track:a', name: 'Track', album: { uri: 'spotify:album:record' } } } }), paused: true }; }, setVolume: async value => { volumes.push(value); if (volumeFails) throw new Error('Volume unavailable'); }, resume: async () => {}, disconnect() {} } };
+  const device = { deviceId: 'browser', player: { getCurrentState: async () => sdkState, activateElement: async () => { activations++; }, pause: async () => { pauses++; if (pauseFails) throw new Error('Pause failed'); sdkState = { ...(sdkState || { position: 0, duration: 100000, track_window: { current_track: { uri: 'spotify:track:a', name: 'Track', album: { uri: 'spotify:album:record' } } } }), paused: true }; }, setVolume: async value => { volumes.push(value); if (volumeFails) throw new Error('Volume unavailable'); }, resume: async () => {}, disconnect() {} } };
   const hook = load('app/use-spotify-player.ts', {
     react, './lib/album-timeline': timeline, './lib/pause-player': load('app/lib/pause-player.ts'),
     './lib/album-stop': load('app/lib/album-stop.ts', { './album-timeline': timeline }),
@@ -206,7 +206,7 @@ function playerHarness() {
   }, async (_url, init) => { const body = JSON.parse(init.body); calls.push(body); return responder(body); });
   return {
     render() { cursor = 0; api = hook.useSpotifyPlayer(); return api; },
-    respond(fn) { responder = fn; }, calls, get connections() { return connections; },
+    respond(fn) { responder = fn; }, calls, get activations() { return activations; }, get connections() { return connections; },
     disconnect() { onError("Disconnected", false, true); },
     state(value) { sdkState = value; onState(value); }, error() { onError('Playback needs another tap.', false, false); },
     failPause(value) { pauseFails = value; }, get pauses() { return pauses; },
@@ -424,4 +424,15 @@ test('Play after device loss reconnects and restores the record at its last posi
  h.disconnect();assert.equal(h.render().state,null);
  assert.equal(await h.render().resume(),true);assert.equal(h.connections,2);assert.equal(h.calls.at(-1).action,'play');assert.equal(h.calls.at(-1).positionMs,42000);assert.equal(h.render().state.playing,true);
  await h.render().eject();
+});
+
+test('vinyl gesture activates an existing audio element synchronously without playback requests', async () => {
+ const h = playerHarness();
+ h.render().activateFromGesture();
+ assert.equal(h.connections, 0, 'no implicit connection or playback while unavailable');
+ await h.render().start(playable);
+ const before = h.activations, commands = h.calls.length;
+ h.render().activateFromGesture();
+ assert.equal(h.activations, before + 1, 'activation happens before the click yields to album loading');
+ assert.equal(h.calls.length, commands);
 });
