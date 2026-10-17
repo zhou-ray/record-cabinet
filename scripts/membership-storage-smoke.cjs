@@ -30,13 +30,14 @@ compile('app/lib/library-storage.ts');
   const batch=(accountId,saved,checkedAt)=>({accountId,records:[{albumId:'spotify:a',saved,checkedAt,source:'spotify-library-contains'}]});
   await store.saveAlbum({id:'spotify:a',title:'Kept',source:'spotify',genres:[],playback:{kind:'spotify',uri:'spotify:album:a'},tracks:[]});
   const before=JSON.stringify(await store.load());
-  await store.saveMembership(batch(a,true,100));await other.saveMembership(batch(b,true,100));
-  await Promise.all([store.saveMembership(batch(a,false,300)),window.membershipStorage(a).saveMembership(batch(a,true,200))]);
+  const writer=await store.membershipWriter(), otherWriter=await other.membershipWriter();
+  await writer.save(batch(a,true,100));await otherWriter.save(batch(b,true,100));
+  await Promise.all([writer.save(batch(a,false,300)),(await window.membershipStorage(a).membershipWriter()).save(batch(a,true,200))]);
   check((await store.loadMembership())[0].saved===false,'late response must not restore eligibility');
   check((await other.loadMembership())[0].saved===true,'accounts isolated');
   const put=IDBObjectStore.prototype.put;
   IDBObjectStore.prototype.put=function(value,key){if(key==='saved-membership')throw Error('Injected failure');return put.call(this,value,key);};
-  let rejected=false;try{await store.saveMembership(batch(a,true,400));}catch{rejected=true;}finally{IDBObjectStore.prototype.put=put;}
+  let rejected=false;try{await writer.save(batch(a,true,400));}catch{rejected=true;}finally{IDBObjectStore.prototype.put=put;}
   check(rejected,'save failure reported');check((await store.loadMembership())[0].checkedAt===300,'failed write rolled back');
   check(JSON.stringify(await store.load())===before,'albums unchanged');
  });
@@ -44,7 +45,10 @@ compile('app/lib/library-storage.ts');
  await page.evaluate(async()=>{
   const a=window.membershipStorage('a'.repeat(64)),b=window.membershipStorage('b'.repeat(64));
   if((await a.loadMembership())[0].saved!==false)throw Error('reload lost membership');
+  const oldWriter=await a.membershipWriter();
   await a.clear();
+  let rejected=false;try{await oldWriter.save({accountId:'a'.repeat(64),records:[{albumId:'spotify:a',saved:true,checkedAt:500,source:'spotify-library-contains'}]});}catch{rejected=true;}
+  if(!rejected)throw Error('old writer repopulated cleared membership');
   if((await a.loadMembership()).length)throw Error('account clear left membership');
   if((await b.loadMembership()).length!==1)throw Error('other account cleared');
  });

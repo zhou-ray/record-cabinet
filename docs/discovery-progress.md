@@ -4,7 +4,7 @@
 
 Milestone 3 — Generated-bin Framework.
 
-**Status: In progress — saved-membership eligibility checkpoint complete; generated bins are not implemented yet.** User authorized Milestone 3 on 2026-10-16. Stop at the verified eligibility boundary this session; continue Milestone 3 only next time. Milestone 2 is complete and pushed to GitHub.
+**Status: In progress — eligibility and cancellable membership reconciliation checkpoints complete; generated bins are not implemented yet.** User authorized Milestone 3 on 2026-10-16. Stopped at a verified reconciliation boundary on 2026-10-17; continue Milestone 3 only next time. Milestone 2 is complete and pushed to GitHub.
 
 Set `NEXT_PUBLIC_ENGAGEMENT_ENABLED=true` **at build time** to exercise instrumentation. It is deliberately off in ordinary builds and `.env.example` pending provider-release review. The 2026-10-15 deployment includes these controls with collection explicitly disabled; see the latest deployment entry below.
 
@@ -96,20 +96,20 @@ The previous foundation remains in `app/lib/engagement.ts` and `tests/engagement
 3. **Device-local:** Web Locks coordinate same-origin tabs only, not different devices. No cross-device aggregate or sync exists; future sync needs deliberate session/reset semantics.
 4. **Unresolved imports:** inspection is deferred until album identity resolves within the selected opening; failed/cancelled resolution does not create a canonical event. Manual/demo records are intentionally excluded. Track availability changes during a session conservatively interrupt counting if the duration denominator changes.
 5. **Retention:** events and sessions are pruned independently at activation/hourly maintenance. Do not assume unlimited historical coverage, or that every retained event has a retained session. Active memory retry is capped; persistent storage failure can lose events once capped or the tab closes.
-6. **Saved-only discovery eligibility:** bounded provider check, separate local cache and pure eligibility rules now exist. They are not connected to UI/orchestration yet. Imports/provenance never qualify on their own. Membership is a last-verified observation with seven-day expiry, not a live guarantee; future discovery must recheck unknown/expired entries and exclude known removals.
+6. **Saved-only discovery eligibility:** bounded provider check, separate local cache and pure eligibility rules now exist. A bounded cancellable coordinator exists; it is not mounted in UI yet. Imports/provenance never qualify on their own. Membership is a last-verified observation with seven-day expiry, not a live guarantee; future discovery must recheck unknown/expired entries and exclude known removals.
 7. **Personal-bin action tracking is deferred:** it is not part of Milestone 1's enumerated inspect/play/duration/completion acceptance list. Existing personal memberships remain available as optional signals; event integration belongs with organizational work before scoring uses it.
 8. **Local history controls:** Download My Data exports saved history, album references and bins. Reset deletes only this account’s local behavioral history and pending writes, preserving collection and sign-in. Other devices and already-downloaded files are unaffected. The separate data export is not restorable. Older schema-v1 tabs must reload after the upgrade; a blocked reset reports failure without clearing history.
 
 ## Not yet implemented
 
-Milestone 2 is complete. Milestone 3 has the membership prerequisite implemented; client reconciliation, persisted generated snapshots and all three generated bins remain. Milestones 4–8 are untouched. No recommendation scoring or cold-start tuning added.
+Milestone 2 is complete. Milestone 3 has the membership prerequisite implemented; the reconciliation UI, persisted generated snapshots and all three generated bins remain. Milestones 4–8 are untouched. No recommendation scoring or cold-start tuning added.
 
 ## Exact next step
 
-Continue **Milestone 3 only**, starting from the saved-membership checkpoint:
+Continue **Milestone 3 only**, starting from the membership-reconciliation checkpoint:
 
 1. Read both discovery documents and Git status. Keep tracking default-off and do not deploy/push without authorization.
-2. Add account-scoped client orchestration using `nextMembershipBatch`, POST `/api/spotify/library` with `{ membershipAlbumIds }`, and `saveMembership`. At most 40 unique albums per request. Use account-context fetch, explicit cancellation/account-generation protection, no retries on cooldown/unknown failures, and an honest partial/error state. No provider call on every browse/render. Ensure pending responses cannot repopulate data after broad account deletion or switching accounts.
+2. Use the tested `useMembershipRefresh` / `createMembershipRefresh` coordinator when adding discovery UI. Runs are explicit, capped at three requests of 40 albums, and resume from committed membership. Before mounting, coordinate simultaneous tabs to avoid duplicate checks and verify hook cancellation/account removal in the actual UI. No requests on browse/render or automatic retries.
 3. Add the generated snapshot repository and simple assignment framework: three bins, at most 20 albums each, zero overlap, stable order, generated/expiry timestamps and seven-day lifetime. Define invalidation after membership refresh: remove ineligible IDs while preserving remaining order. No hidden re-fill/re-shuffle every visit. Keep Forgotten Favorites honest without sufficient history; Milestone 4 owns heuristic tuning.
 4. Integrate the three native-looking bin entries and short blurbs without altering alphabetical/custom organization, playback or bin browsing. Handle small/empty/unknown saved libraries. Connect generated state to export/reset/local deletion before shipping it; membership itself is provider library metadata, not behavioral history.
 5. Test reload/expiry/concurrency/account isolation/removal, zero overlap and unchanged library/playback; run tests/lint/typecheck/build, update handoff, commit and STOP before Milestone 4.
@@ -117,7 +117,8 @@ Continue **Milestone 3 only**, starting from the saved-membership checkpoint:
 ## Last known stable commit
 
 - Before Milestone 3: `5af5c4b` (`docs: record mobile playback correction deployment`), pushed to GitHub. The app code is live with tracking disabled.
-- This tested eligibility checkpoint is titled `feat: add verified saved-album eligibility`; obtain its hash from git log after commit.
+- Last stable commit before this session: `76656d4` (`feat: add verified saved-album eligibility`), local only.
+- This tested reconciliation checkpoint is titled `feat: add cancellable saved-membership refresh`; obtain its hash from git log after commit.
 - No push, deployment, tracking activation or later-milestone work in this session.
 
 ## Milestone 1 correction — browsing during playback (2026-10-08)
@@ -285,3 +286,20 @@ Checks: 242 Node tests PASS; lint PASS; production webpack build/typecheck PASS;
 Known limits: no client reconciliation UI, no snapshot persistence/rendering, no scoring. Seven-day freshness is a deliberate maximum cache age, not real-time membership assurance. A new observation saying not-saved must filter future/existing snapshots on the next client refresh; unsaves cannot be known while offline. Membership is device-local and not included in backups/cloud sync; future exports may include verification metadata as library data. Pending reconciliation cancellation/reset fencing must be designed when wiring the client; there is currently no pending client reconciliation to cancel. Old saved-import provenance is not backfilled as evidence. Native lock-screen/extra-tap issues remain parked as requested.
 
 Exact next step: client reconciliation plus generated snapshot/UI work listed at the top. Stay within Milestone 3. Last stable commit before this checkpoint: `5af5c4b`.
+
+
+## Milestone 3 reconciliation checkpoint (2026-10-17)
+
+Completed another clean sub-boundary; Milestone 3 remains incomplete and there are still no visible generated bins.
+
+- Added an explicit account-scoped refresh coordinator and unmounted React adapter. Each run checks at most three batches of 40 albums, skipping fresh positive and negative observations; subsequent runs resume from committed cache. Concurrent starts on the same controller share one run. Nothing fetches on creation/mount.
+- Cancel, disposal and account lifecycle stop pending work. Each request has a 30-second timeout. Cooldowns, malformed/foreign/incomplete/stale results, network and storage errors stop without automatic retries. Progress distinguishes partial, complete, cancelled and error states.
+- Replaced unfenced membership writes with generation-bound writers. Broad local removal atomically advances a minimal generation marker while clearing albums/settings. Old responses cannot restore deleted membership even if a writer misses deletion notifications. Abort signals also cancel pending write transactions. Metadata writes do not trigger cloud sync or album changes.
+
+Files changed: `app/lib/membership-refresh.ts` (new), `app/use-membership-refresh.ts` (new), `app/lib/library-storage.ts`, `tests/membership-refresh.test.mjs` (new), `tests/library-storage.test.mjs`, `scripts/membership-storage-smoke.cjs`, and both discovery documents.
+
+Checks: 247 Node tests PASS; lint PASS; production webpack build/typecheck PASS; diff check PASS. Real Chrome IndexedDB smoke PASS for reload persistence, concurrent stale writes, rollback, account isolation, unchanged albums, scoped deletion and rejection of an old writer after deletion. Coordinator tests cover bounded resume, deduplicated starts, cancellation/disposal, late responses, wrong accounts/IDs, partial/stale results, failures and empty/guest libraries. No live Spotify calls, push or deployment. Tracking stays default-off.
+
+Known limits: the hook is not mounted, so no new user-visible controls or provider traffic; actual React/account lifecycle integration still needs browser verification when connected. Separate tabs can initiate duplicate checks (no cross-tab request ownership yet). Client/server clock skew can conservatively reject future-dated checks. Membership stays local library metadata; personalization reset does not clear it. Snapshots, bin UI and generated-data export/reset remain unimplemented. Native media issues remain parked.
+
+Exact next step: build the snapshot repository and simple three-bin framework described above, then wire the explicit coordinator/UI with cross-tab request ownership and browser checks. Preserve the 20-album caps, seven-day stability, zero overlap and eligibility filtering; integrate generated state with export/reset before completion. Do not begin Milestone 4. Last stable commit before this checkpoint: `76656d4`.

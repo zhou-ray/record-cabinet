@@ -59,13 +59,33 @@ return {
       return () => readMembershipCache(request.result, scope);
     });
   },
-  saveMembership(batch: MembershipBatch): Promise<void> {
-    const checked = checkedMembershipBatch(batch, scope);
-    return transaction(["settings"], "readwrite", tx => {
-      const settings = tx.objectStore("settings"), request = settings.get("saved-membership");
-      request.onsuccess = () => settings.put(mergeMembership(readMembershipCache(request.result, scope), checked.records), "saved-membership");
-      return () => undefined;
-    }, false); // Local provider metadata, not a cloud/library mutation.
+  async membershipWriter() {
+    if (!/^[a-f0-9]{64}$/.test(scope)) throw new Error("An authenticated account is required.");
+    const generation = await transaction(["settings"], "readonly", tx => {
+      const request = tx.objectStore("settings").get("membership-generation");
+      return () => request.result ?? 0;
+    });
+    if (!Number.isSafeInteger(generation) || generation < 0) throw new Error("Invalid membership generation.");
+    return { save: (batch: MembershipBatch, signal?: AbortSignal): Promise<void> => {
+      const checked = checkedMembershipBatch(batch, scope);
+      signal?.throwIfAborted();
+      let abort: (() => void) | undefined;
+      return transaction(["settings"], "readwrite", tx => {
+        signal?.throwIfAborted();
+        abort = () => { try { tx.abort(); } catch { /* Transaction already finished. */ } };
+        signal?.addEventListener("abort", abort, { once: true });
+        const settings = tx.objectStore("settings"), marker = settings.get("membership-generation");
+        marker.onsuccess = () => {
+          if ((marker.result ?? 0) !== generation || signal?.aborted) { tx.abort(); return; }
+          const request = settings.get("saved-membership");
+          request.onsuccess = () => {
+            if (signal?.aborted) { tx.abort(); return; }
+            settings.put(mergeMembership(readMembershipCache(request.result, scope), checked.records), "saved-membership");
+          };
+        };
+        return () => undefined;
+      }, false).finally(() => { if (abort) signal?.removeEventListener("abort", abort); });
+    } };
   },
   recordRequestUsage(usage: RequestUsage, day = new Date().toISOString().slice(0, 10)): Promise<void> {
     return transaction(["settings"], "readwrite", tx => {
@@ -149,7 +169,16 @@ return {
     }, false);
   },
   clear(): Promise<void> {
-    return transaction(["albums", "settings"], "readwrite", tx => { tx.objectStore("albums").clear(); tx.objectStore("settings").clear(); return () => undefined; });
+    return transaction(["albums", "settings"], "readwrite", tx => {
+      const settings = tx.objectStore("settings"), marker = settings.get("membership-generation");
+      marker.onsuccess = () => {
+        const generation = marker.result ?? 0;
+        if (!Number.isSafeInteger(generation) || generation < 0 || generation >= Number.MAX_SAFE_INTEGER) { tx.abort(); return; }
+        tx.objectStore("albums").clear(); settings.clear();
+        settings.put(generation + 1, "membership-generation");
+      };
+      return () => undefined;
+    });
   },
   prepareAlbumGenres(album: Album): Promise<Album> {
     return transaction(["settings"], "readonly", tx => {
