@@ -34,7 +34,7 @@ test('export preserves readable history, album identities and bin memberships wi
   assert.equal(data.sessions[0].startedAt, '1970-01-01T00:00:01.000Z');
   assert.deepEqual(data.organization.systems[0].memberships, [{ albumId: 'spotify:record', binId: 'bin', assignedAt: null }]);
   assert.equal(data.organization.systems[0].createdAt, null);
-  assert.equal(data.generatedBins.status, 'not-implemented');
+  assert.equal(data.generatedBins.status, 'latest-snapshot-only');
 });
 test('export allowlists every structure and excludes credentials, raw provider state, and account hashes', () => {
   const source = fixture();

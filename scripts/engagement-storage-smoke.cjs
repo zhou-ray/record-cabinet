@@ -2,7 +2,7 @@
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const fs = require('node:fs');
 const ts = require('typescript');
-const sources = Object.fromEntries(['engagement', 'engagement-storage'].map(name => [name, ts.transpileModule(fs.readFileSync(`app/lib/${name}.ts`, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText]));
+const sources = Object.fromEntries(['saved-membership', 'discovery-snapshot', 'engagement', 'engagement-storage'].map(name => [name, ts.transpileModule(fs.readFileSync(`app/lib/${name}.ts`, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText]));
 (async () => {
   const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: true });
   try {
@@ -150,7 +150,48 @@ const sources = Object.fromEntries(['engagement', 'engagement-storage'].map(name
       const other = await window.engagementTestModules['engagement-storage'].createEngagementStorage('b'.repeat(64)).load();
       if (other.events.length !== 1) throw Error('Reset affected another account');
     });
+    await page.evaluate(async () => {
+      const { createEngagementStorage } = window.engagementTestModules['engagement-storage'];
+      const { DISCOVERY_LIFETIME: ttl } = window.engagementTestModules['discovery-snapshot'];
+      const user = 'd'.repeat(64), repo = createEngagementStorage(user), writer = await repo.writer();
+      const snapshot = { id: 'first', accountId: user, generatedAt: 1000, expiresAt: 1000 + ttl, version: 'framework-1', bins: [
+        {type: 'forgotten', albumIds: []}, {type: 'wander', albumIds: ['spotify:one']}, {type: 'digging', albumIds: ['spotify:two']},
+      ] };
+      const check = (ok, message) => { if (!ok) throw Error(message); };
+      const peer = await createEngagementStorage(user).writer();
+      const results = await Promise.all([writer.saveDiscovery(snapshot, 1000), peer.saveDiscovery({...snapshot, id: 'competing'}, 1000)]);
+      check(results[0].id === results[1].id, 'concurrent generation must converge');
+      const saved = await repo.load();
+      check(saved.discovery.id === results[0].id && saved.events.length === 0, 'snapshot persisted without synthetic history');
+      check((await createEngagementStorage('e'.repeat(64)).load()).discovery === null, 'snapshot account isolation');
+      const replacement = {...snapshot, id: 'replacement', generatedAt: 1000 + ttl, expiresAt: 1000 + 2 * ttl};
+      check((await writer.saveDiscovery(replacement, 1000 + ttl)).id === 'replacement', 'expiry permits replacement');
+      check((await writer.saveDiscovery(snapshot, 1000)).id === 'replacement', 'late older generation cannot overwrite newer');
+      window.discoveryWriter = writer;
+      window.discoveryFixture = replacement;
+    });
+    await page.reload();
+    await page.evaluate(async () => {
+      const repo = window.engagementTestModules['engagement-storage'].createEngagementStorage('d'.repeat(64));
+      const snapshot = (await repo.load()).discovery;
+      if (snapshot?.id !== 'replacement') throw Error('snapshot lost on reload');
+      window.discoveryWriter = await repo.writer(); window.discoveryFixture = snapshot;
+    });
+    await peerPage.evaluate(async () => {
+      await window.engagementTestModules['engagement-storage'].createEngagementStorage('d'.repeat(64)).reset();
+    });
+    await page.evaluate(async () => {
+      let rejected = false;
+      try { await window.discoveryWriter.saveDiscovery(window.discoveryFixture, window.discoveryFixture.generatedAt); }
+      catch (error) { rejected = error.name === 'HistoryResetError'; }
+      const repo = window.engagementTestModules['engagement-storage'].createEngagementStorage('d'.repeat(64));
+      if (!rejected || (await repo.load()).discovery !== null) throw Error('reset resurrected discovery snapshot');
+      const writer = await repo.writer();
+      await writer.saveDiscovery(window.discoveryFixture, window.discoveryFixture.generatedAt);
+      await repo.clear();
+      if ((await repo.load()).discovery !== null) throw Error('local deletion retained snapshot');
+    });
     await peerPage.close();
-    console.log('PASS: real IndexedDB account isolation, idempotent/concurrent writes, stale checkpoint protection, atomic rollback, metadata exclusion, reload recovery, reset migration/blocking/rollback, generation fencing and suspended-tab protection');
+    console.log('PASS: real IndexedDB account isolation, idempotent/concurrent writes, stale checkpoint protection, atomic rollback, metadata exclusion, reload recovery, reset migration/blocking/rollback, generation fencing, suspended-tab protection, discovery reload/concurrency/expiry/reset');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

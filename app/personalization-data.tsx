@@ -48,7 +48,7 @@ export default function PersonalizationData({ disabled }: { disabled: boolean })
       publishHistoryReset(accountId, generation);
       if (active.current) {
         setConfirming(false);
-        setMessage("Personalization history reset. Your albums, bins, sign-in and playback are unchanged.");
+        setMessage("Personalization history and discovery bins reset. Your albums, personal bins, sign-in and playback are unchanged.");
       }
     } catch (error) {
       if (active.current) setMessage(error instanceof Error && /blocked/i.test(error.message)
@@ -62,11 +62,11 @@ export default function PersonalizationData({ disabled }: { disabled: boolean })
     <p>{process.env.NEXT_PUBLIC_ENGAGEMENT_ENABLED === "true"
       ? "This test build saves sleeve inspections and listening progress on this device for future discovery features. This history is not uploaded."
       : "Browsing and listening history collection is off in this build. Any history already saved in this browser is still included in your download."}</p>
-    <p>Download saved history, album references and personal-bin memberships as JSON. Recent listening may not be saved yet. The file excludes Spotify credentials; it contains personal listening information, so keep it private. For a restorable collection, use Collection backup below.</p>
+    <p>Download saved history, album references, personal-bin memberships and the latest discovery snapshot as JSON. Recent listening may not be saved yet. The file excludes Spotify credentials; it contains personal listening information, so keep it private. For a restorable collection, use Collection backup below.</p>
     <button disabled={disabled || busy} onClick={() => void download()}>Download My Data</button>
     <button disabled={disabled || busy} onClick={() => setConfirming(true)}>Reset Personalization History</button>
     {confirming && <div role="alert">
-      <p>Delete this account’s sleeve inspections and listening history from this browser, including other open tabs? Albums, personal bins, genre edits, import progress, cloud data and Spotify sign-in stay. Music keeps playing.</p>
+      <p>Delete this account’s sleeve inspections, listening history and generated discovery bins from this browser, including other open tabs? Albums, personal bins, genre edits, import progress, cloud data and Spotify sign-in stay. Music keeps playing.</p>
       <p>This cannot be undone. Download your data first if you want a copy. With tracking enabled, new actions start fresh history; the current record will not count again until you explicitly play or resume it.</p>
       <button disabled={disabled || busy} onClick={() => void reset()}>Reset history</button>
       <button disabled={busy} onClick={() => setConfirming(false)}>Cancel reset</button>

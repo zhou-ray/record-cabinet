@@ -1355,3 +1355,12 @@ This is a Milestone 3 sub-boundary, not a complete discovery feature. Next imple
 An explicit coordinator now checks at most three 40-album batches per run through account-context fetch, persists each successful batch, and resumes by skipping fresh positive and negative observations. It performs no mount/browse requests and no automatic retries; timeout, cancellation, account disposal, malformed results and storage errors stop the run with partial progress preserved. The React adapter remains unmounted until discovery UI is implemented.
 
 Membership writers capture a library-settings generation before fetching. Broad local deletion advances it atomically with clearing data; stale writers are rejected within their write transaction, independently of notifications. This marker contains no behavioral history. Personalization reset continues to preserve provider membership metadata. Cross-tab request ownership and actual UI lifecycle checks remain required before mounting. Generated snapshots, bins and their reset/export integration are still next within Milestone 3; no later heuristics have begun.
+
+
+## Milestone 3 snapshot decision record (partial, 2026-10-17)
+
+The `framework-1` snapshot stores three ordered bins (maximum 20 each), canonical album IDs, account scope and seven-day timestamps. The separable assignment layer accepts caller-provided ordered candidates, verifies saved membership and assigns round-robin without overlap. It does not infer favorites or implement recommendation scores. Rendering must use the eligibility-filtered view; exclusions do not refill or shuffle the persisted snapshot.
+
+The latest snapshot lives in the engagement database's existing metadata store and shares its reset generation. First current snapshot wins atomically across tabs; expiry permits replacement, and old writers cannot restore reset state or replace newer snapshots. Reset deletes generated state with history, preserving library membership metadata and personal bins. Download My Data includes the latest snapshot only, with allowlisted fields and readable timestamps; there is no historical archive or feedback yet. This extends privacy controls without activating collection.
+
+This checkpoint does not mount a generator or discovery UI. Next wire bounded membership refresh with cross-tab ownership, a simple candidate generator and native bins, then test the full lifecycle. Stay within Milestone 3; cold-start tuning and scoring remain later milestones.

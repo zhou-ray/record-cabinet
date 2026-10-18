@@ -1,3 +1,4 @@
+import { checkedDiscoverySnapshot, discoveryIsCurrent, type DiscoverySnapshot } from "./discovery-snapshot";
 import { checkedSession, engagementAccount, inspection, sessionEvents, type EngagementEvent, type Inspection, type PlaybackSession } from "./engagement";
 
 export class HistoryResetError extends Error {
@@ -37,7 +38,7 @@ export function createEngagementStorage(userId: string, factory: IDBFactory = in
       catch (error) { db.close(); reject(error); return; }
       let result: () => T, failure: unknown;
       const fail = (error: unknown) => { failure = error; tx.abort(); };
-      tx.oncomplete = () => { db.close(); resolve(result()); };
+      tx.oncomplete = () => { db.close(); try { resolve(result()); } catch (error) { reject(error); } };
       tx.onabort = () => { db.close(); reject(failure ?? tx.error ?? new Error("Engagement save interrupted.")); };
       tx.onerror = () => { /* Aborting the transaction rejects the whole save. */ };
       const start = () => { try { result = work(tx, fail); } catch (error) { fail(error); } };
@@ -66,6 +67,7 @@ export function createEngagementStorage(userId: string, factory: IDBFactory = in
         if (!Number.isSafeInteger(request.result) || request.result < 0 || request.result >= Number.MAX_SAFE_INTEGER) { fail(new Error("Invalid history generation.")); return; }
         next = request.result + 1;
         metadata.put(next, "generation");
+        metadata.delete("discovery-snapshot");
         tx.objectStore("events").clear(); tx.objectStore("sessions").clear();
         } catch (error) { fail(error); }
       };
@@ -134,11 +136,13 @@ export function createEngagementStorage(userId: string, factory: IDBFactory = in
         return () => undefined;
       }, expectedGeneration);
     },
-    load(): Promise<{ events: EngagementEvent[]; sessions: PlaybackSession[]; generation: number }> {
+    load(): Promise<{ events: EngagementEvent[]; sessions: PlaybackSession[]; generation: number; discovery: DiscoverySnapshot | null }> {
       return transaction("readonly", tx => {
         const events = tx.objectStore("events").getAll(), sessions = tx.objectStore("sessions").getAll();
         const marker = tx.objectStore("metadata").get("generation");
-        return () => ({ events: events.result, sessions: sessions.result, generation: marker.result });
+        const discovery = tx.objectStore("metadata").get("discovery-snapshot");
+        return () => ({ events: events.result, sessions: sessions.result, generation: marker.result,
+          discovery: discovery.result?.generation === marker.result ? checkedDiscoverySnapshot(discovery.result.snapshot, userId) : null });
       });
     },
   };
@@ -151,6 +155,25 @@ export function createEngagementStorage(userId: string, factory: IDBFactory = in
       return { generation: captured,
         recordInspection: (value: Inspection) => repository.recordInspection(value, captured),
         saveSession: (value: PlaybackSession) => repository.saveSession(value, captured),
+        /** First current snapshot wins across tabs. An expired set may be replaced. */
+        saveDiscovery(value: DiscoverySnapshot, now: number): Promise<DiscoverySnapshot> {
+          const snapshot = checkedDiscoverySnapshot(value, userId);
+          if (!discoveryIsCurrent(snapshot, now)) throw new Error("Discovery snapshot is not current.");
+          return transaction("readwrite", (tx, fail) => {
+            const metadata = tx.objectStore("metadata"), request = metadata.get("discovery-snapshot");
+            let result = snapshot;
+            request.onsuccess = () => {
+              try {
+                if (request.result?.generation === captured) {
+                  const previous = checkedDiscoverySnapshot(request.result.snapshot, userId);
+                  if (discoveryIsCurrent(previous, now) || previous.generatedAt > snapshot.generatedAt) { result = previous; return; }
+                }
+                metadata.put({ generation: captured, snapshot }, "discovery-snapshot");
+              } catch (error) { fail(error); }
+            };
+            return () => result;
+          }, captured);
+        },
       };
     },
   };

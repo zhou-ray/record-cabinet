@@ -4,7 +4,7 @@
 
 Milestone 3 — Generated-bin Framework.
 
-**Status: In progress — eligibility and cancellable membership reconciliation checkpoints complete; generated bins are not implemented yet.** User authorized Milestone 3 on 2026-10-16. Stopped at a verified reconciliation boundary on 2026-10-17; continue Milestone 3 only next time. Milestone 2 is complete and pushed to GitHub.
+**Status: In progress — eligibility, reconciliation and snapshot storage checkpoints complete; discovery browsing UI is not implemented yet.** User authorized Milestone 3 on 2026-10-16. Stopped at a verified snapshot/export/reset boundary on 2026-10-17; continue Milestone 3 only next time. Milestone 2 is complete and pushed to GitHub.
 
 Set `NEXT_PUBLIC_ENGAGEMENT_ENABLED=true` **at build time** to exercise instrumentation. It is deliberately off in ordinary builds and `.env.example` pending provider-release review. The 2026-10-15 deployment includes these controls with collection explicitly disabled; see the latest deployment entry below.
 
@@ -102,23 +102,23 @@ The previous foundation remains in `app/lib/engagement.ts` and `tests/engagement
 
 ## Not yet implemented
 
-Milestone 2 is complete. Milestone 3 has the membership prerequisite implemented; the reconciliation UI, persisted generated snapshots and all three generated bins remain. Milestones 4–8 are untouched. No recommendation scoring or cold-start tuning added.
+Milestone 2 is complete. Milestone 3 has the membership prerequisite implemented; persisted snapshots and the assignment framework now exist; the reconciliation UI and native discovery browsing remain. Milestones 4–8 are untouched. No recommendation scoring or cold-start tuning added.
 
 ## Exact next step
 
-Continue **Milestone 3 only**, starting from the membership-reconciliation checkpoint:
+Continue **Milestone 3 only**, starting from the snapshot-storage checkpoint:
 
 1. Read both discovery documents and Git status. Keep tracking default-off and do not deploy/push without authorization.
 2. Use the tested `useMembershipRefresh` / `createMembershipRefresh` coordinator when adding discovery UI. Runs are explicit, capped at three requests of 40 albums, and resume from committed membership. Before mounting, coordinate simultaneous tabs to avoid duplicate checks and verify hook cancellation/account removal in the actual UI. No requests on browse/render or automatic retries.
-3. Add the generated snapshot repository and simple assignment framework: three bins, at most 20 albums each, zero overlap, stable order, generated/expiry timestamps and seven-day lifetime. Define invalidation after membership refresh: remove ineligible IDs while preserving remaining order. No hidden re-fill/re-shuffle every visit. Keep Forgotten Favorites honest without sufficient history; Milestone 4 owns heuristic tuning.
-4. Integrate the three native-looking bin entries and short blurbs without altering alphabetical/custom organization, playback or bin browsing. Handle small/empty/unknown saved libraries. Connect generated state to export/reset/local deletion before shipping it; membership itself is provider library metadata, not behavioral history.
+3. Use `assignDiscoverySnapshot`, `visibleDiscoveryBins` and the engagement repository's generation-bound `writer().saveDiscovery` / `load().discovery`. The first current snapshot wins across tabs; expiry allows replacement. Add a simple generator feeding ordered candidates (not weighted scoring), with honest empty Forgotten Favorites until evidence exists. The assignment layer does not select/rank candidates itself. Fresh membership must gate generation and every rendered view; never refill or reshuffle within a snapshot.
+4. Integrate the three native-looking bin entries and short blurbs without altering alphabetical/custom organization, playback or bin browsing. Handle small/empty/unknown saved libraries. Preserve the implemented generated-state export/reset/local deletion integration; membership itself is provider library metadata, not behavioral history.
 5. Test reload/expiry/concurrency/account isolation/removal, zero overlap and unchanged library/playback; run tests/lint/typecheck/build, update handoff, commit and STOP before Milestone 4.
 
 ## Last known stable commit
 
 - Before Milestone 3: `5af5c4b` (`docs: record mobile playback correction deployment`), pushed to GitHub. The app code is live with tracking disabled.
-- Last stable commit before this session: `76656d4` (`feat: add verified saved-album eligibility`), local only.
-- This tested reconciliation checkpoint is titled `feat: add cancellable saved-membership refresh`; obtain its hash from git log after commit.
+- Last stable commit before this session: `3e14abe` (`feat: add cancellable saved-membership refresh`), local only.
+- This tested snapshot checkpoint is titled `feat: persist discovery snapshots with privacy controls`; obtain its hash from git log after commit.
 - No push, deployment, tracking activation or later-milestone work in this session.
 
 ## Milestone 1 correction — browsing during playback (2026-10-08)
@@ -303,3 +303,22 @@ Checks: 247 Node tests PASS; lint PASS; production webpack build/typecheck PASS;
 Known limits: the hook is not mounted, so no new user-visible controls or provider traffic; actual React/account lifecycle integration still needs browser verification when connected. Separate tabs can initiate duplicate checks (no cross-tab request ownership yet). Client/server clock skew can conservatively reject future-dated checks. Membership stays local library metadata; personalization reset does not clear it. Snapshots, bin UI and generated-data export/reset remain unimplemented. Native media issues remain parked.
 
 Exact next step: build the snapshot repository and simple three-bin framework described above, then wire the explicit coordinator/UI with cross-tab request ownership and browser checks. Preserve the 20-album caps, seven-day stability, zero overlap and eligibility filtering; integrate generated state with export/reset before completion. Do not begin Milestone 4. Last stable commit before this checkpoint: `76656d4`.
+
+
+## Milestone 3 snapshot checkpoint (2026-10-17)
+
+Completed the persistence/assignment/privacy sub-boundary. Milestone 3 remains incomplete: no discovery tab, user-facing membership check, or candidate generator is mounted. Stop here rather than partially wiring cabinet browsing; continue Milestone 3 only.
+
+Completed:
+- Added a validated, allowlisted `framework-1` snapshot containing three ordered bin types, canonical album IDs, account identity, generation/expiry timestamps and snapshot ID. Cap is 20 per bin, seven-day lifetime and zero overlap. Assignment accepts separately ordered candidate lists, filters against verified saved membership and distributes candidates round-robin to avoid exhausting small libraries in the first bin. Empty candidate lists remain empty; no fabricated Forgotten Favorites or weighted recommendation scoring.
+- Added an eligibility-filtered viewing function: removed, missing, stale and future-dated membership is excluded while retained order stays stable. Expired/future snapshots expose empty bins. Filtering never mutates, fills or reshuffles the persisted set.
+- Persisted the latest snapshot in the existing engagement metadata store without a schema change. Generation-bound transactions serialize competing tabs: first current snapshot wins, expired snapshots can be replaced, and a late older response cannot overwrite a newer snapshot. No behavioral events are created by snapshot storage. Reset/local removal atomically delete it and fence old writers, including tabs missing notifications. Older v2 reset code also invalidates snapshots by advancing the shared generation.
+- Download My Data now includes the latest snapshot with readable timestamps and no account hash/unknown metadata. It does not retain previous generations or feedback. Updated reset/privacy copy to distinguish generated bins from preserved personal bins. No provider calls or public collection activation added.
+
+Files changed: `app/lib/discovery-snapshot.ts` (new), `app/lib/engagement-storage.ts`, `app/lib/personalization-export.ts`, `app/personalization-data.tsx`, `app/privacy/page.tsx`, `tests/discovery-snapshot.test.mjs` (new), `tests/personalization-export.test.mjs`, `scripts/engagement-storage-smoke.cjs`, `scripts/engagement-integration-smoke.cjs`, and both discovery documents.
+
+Checks: 251 Node tests PASS; lint PASS; production webpack build/typecheck PASS; diff check PASS. Real Chrome IndexedDB smoke PASS including existing history migration/blocking/rollback tests and new snapshot reload, account isolation, concurrent convergence, expiry, stale response, cross-tab reset and local removal tests. Production browser integration PASS at 390px and 1400px with mocked Spotify: tracking stays disabled, empty/retained exports work, a seeded snapshot is exported and reset removes it. No real Spotify activity or personal data used.
+
+Known limits: only the latest snapshot is retained, not an archive of old bins; feedback remains Milestone 6. Candidate selection, UI lifecycle and cross-tab membership request ownership remain unfinished. A corrupt same-generation snapshot fails export/load closed; reset can clear it. Membership is device-local last-verified metadata and must be rechecked explicitly when stale. No changes to actual album organization, browsing, playback or parked native-media issues. Not pushed/deployed.
+
+Exact next step: add cross-tab ownership around membership refresh, implement the basic candidate generator and native discovery UI, then verify end-to-end generation/reload/expiry/removal/reset without remounting playback. Use the repository and assignment functions above; preserve default-off tracking and do not begin Milestone 4 heuristics. Last stable commit before this checkpoint: `3e14abe`.

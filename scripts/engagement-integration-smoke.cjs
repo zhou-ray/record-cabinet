@@ -67,11 +67,21 @@ function cookie() {
     await page.evaluate(async account => {
      const db = await new Promise(resolve => { const r = indexedDB.open(`record-cabinet-engagement:${account}`); r.onsuccess = () => resolve(r.result); });
      await new Promise(resolve => { const tx = db.transaction('events', 'readwrite'); tx.objectStore('events').put({ id: 'retained-inspection', userId: account, type: 'album_inspected', albumId: 'spotify:old', timestamp: 1000 }); tx.oncomplete = resolve; }); db.close();
+     const snapshotDb = await new Promise(resolve => { const r = indexedDB.open(`record-cabinet-engagement:${account}`); r.onsuccess = () => resolve(r.result); });
+     await new Promise(resolve => {
+      const tx = snapshotDb.transaction('metadata', 'readwrite'), metadata = tx.objectStore('metadata'), generation = metadata.get('generation');
+      generation.onsuccess = () => metadata.put({ generation: generation.result, snapshot: {
+       id: 'export-test', accountId: account, generatedAt: 1000, expiresAt: 1000 + 7 * 86400000, version: 'framework-1',
+       bins: [{type: 'forgotten', albumIds: []}, {type: 'wander', albumIds: ['spotify:old']}, {type: 'digging', albumIds: []}],
+      } }, 'discovery-snapshot');
+      tx.oncomplete = resolve;
+     }); snapshotDb.close();
     }, account);
     const retainedDownload = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Download My Data', exact: true }).click();
     const retained = JSON.parse(await fs.readFile(await (await retainedDownload).path(), 'utf8'));
     assert.equal(retained.events[0].id, 'retained-inspection', 'disabled tracking still permits export of old history');
+    assert.equal(retained.generatedBins.history[0].id, 'export-test');
     await page.getByRole('button', { name: 'Reset Personalization History', exact: true }).click();
     await page.getByRole('button', { name: 'Reset history', exact: true }).click();
     await page.getByRole('button', { name: 'Reset history', exact: true }).waitFor({ state: 'detached' });
@@ -79,6 +89,7 @@ function cookie() {
     await page.getByRole('button', { name: 'Download My Data', exact: true }).click();
     const clearedData = JSON.parse(await fs.readFile(await (await clearedDownload).path(), 'utf8'));
     assert.deepEqual(clearedData.events, []); assert.deepEqual(clearedData.sessions, []);
+    assert.deepEqual(clearedData.generatedBins.history, []);
     assert.deepEqual(errors, []); await context.close();
     console.log(`PASS: no automatic history collection; empty/retained-history downloads and reset work with tracking disabled at ${width}px`);
     continue;

@@ -1,3 +1,4 @@
+import { checkedDiscoverySnapshot, type DiscoverySnapshot } from "./discovery-snapshot";
 import type { Album } from "../data/types";
 import { parseOrganization, type Organization } from "./collection-backup";
 import { checkedSession, engagementAccount, engagementAlbum, engagementAlbumId, inspection, type EngagementEvent, type PlaybackSession } from "./engagement";
@@ -11,7 +12,7 @@ const id = (value: string) => typeof value === "string" && /^[a-zA-Z0-9:_-]{1,16
 /** Explicit fields only: never serialize storage/settings, SDK state or auth objects wholesale. */
 export function createPersonalizationExport(input: {
   accountId: string; exportedAt: number; albums: Album[]; organization: Organization;
-  events: EngagementEvent[]; sessions: PlaybackSession[];
+  events: EngagementEvent[]; sessions: PlaybackSession[]; discovery?: DiscoverySnapshot | null;
 }) {
   const { accountId } = input;
   if (!engagementAccount(accountId)) throw new Error("Sign in to download your account data.");
@@ -34,6 +35,7 @@ export function createPersonalizationExport(input: {
       completedAt: session.completedAt === null ? null : iso(session.completedAt) };
   }).sort((a, b) => a.startedAt.localeCompare(b.startedAt) || a.id.localeCompare(b.id));
   const organization = parseOrganization(input.organization);
+  const discovery = input.discovery ? checkedDiscoverySnapshot(input.discovery, accountId) : null;
   return {
     format: "record-cabinet-personalization", version: 1, exportedAt: iso(input.exportedAt),
     scope: "Current account, this browser's saved data only",
@@ -42,7 +44,7 @@ export function createPersonalizationExport(input: {
       "Library references include imported albums, not a verified list of your current Spotify saved albums.",
       "Personal-bin creation and assignment timestamps were not recorded and are null. Album addedAt is null when unavailable.",
       "History retention may leave events without a retained session or albums no longer present in the library.",
-      "Generated-bin history and feedback are not implemented. This file is a data export, not a restorable collection backup.",
+      "Only the latest generated-bin snapshot is retained; older snapshots and feedback are not retained. This file is a data export, not a restorable collection backup.",
     ],
     library: input.albums.filter(album => album.source !== "mock").map(album => {
       if (!["spotify", "spotify-export", "manual"].includes(album.source)
@@ -62,6 +64,9 @@ export function createPersonalizationExport(input: {
         memberships: Object.entries(system.assignments).sort(([a], [b]) => a.localeCompare(b)).map(([albumId, binId]) => ({ albumId, binId, assignedAt: null })),
       })),
     },
-    generatedBins: { status: "not-implemented", history: [], feedback: [] },
+    generatedBins: { status: "latest-snapshot-only", history: discovery ? [{ id: discovery.id,
+      generatedAt: iso(discovery.generatedAt), expiresAt: iso(discovery.expiresAt), version: discovery.version,
+      bins: discovery.bins.map(bin => ({ type: bin.type, albumIds: [...bin.albumIds] })),
+    }] : [], feedback: [] },
   };
 }
