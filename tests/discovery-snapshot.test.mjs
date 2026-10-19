@@ -55,3 +55,18 @@ test('personalization export includes an allowlisted latest snapshot without acc
   assert.ok(!JSON.stringify(data).includes(accountId));
   assert.ok(!JSON.stringify(data).includes('secret'));
 });
+
+test('baseline generator requires repeated old completions for favorites and excludes played records from Digging', () => {
+  const { generateDiscovery } = load('app/lib/discovery-generator.ts');
+  const input = fixture(10); input.now = 40 * 86400000;
+  input.membership.forEach(row => row.checkedAt = input.now);
+  const event = (albumId, type, sessionId, timestamp = 1000) => ({id: sessionId, albumId, type, sessionId, timestamp, userId: accountId});
+  const events = [event('spotify:a0', 'album_completed', 'one'), event('spotify:a0', 'album_completed', 'two'), event('spotify:a1', 'album_play_started', 'played'), event('spotify:a2', 'album_completed', 'single'), event('spotify:a3', 'album_completed', 'three'), event('spotify:a3', 'album_completed', 'four'), event('spotify:a3', 'album_inspected', 'recent', input.now)];
+  const snapshot = generateDiscovery({...input, events, random: () => .5});
+  assert.deepEqual(snapshot.bins[0].albumIds, ['spotify:a0']);
+  assert.ok(snapshot.bins[2].albumIds.every(id => !['spotify:a0','spotify:a1','spotify:a2','spotify:a3'].includes(id)));
+  const cold = generateDiscovery({...input, events: [], random: () => .5});
+  assert.equal(cold.bins[0].albumIds.length, 0);
+  assert.ok(cold.bins[1].albumIds.length && cold.bins[2].albumIds.length);
+  assert.deepEqual(generateDiscovery({...input, events, random: () => .5}), snapshot);
+});

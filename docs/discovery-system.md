@@ -1364,3 +1364,14 @@ The `framework-1` snapshot stores three ordered bins (maximum 20 each), canonica
 The latest snapshot lives in the engagement database's existing metadata store and shares its reset generation. First current snapshot wins atomically across tabs; expiry permits replacement, and old writers cannot restore reset state or replace newer snapshots. Reset deletes generated state with history, preserving library membership metadata and personal bins. Download My Data includes the latest snapshot only, with allowlisted fields and readable timestamps; there is no historical archive or feedback yet. This extends privacy controls without activating collection.
 
 This checkpoint does not mount a generator or discovery UI. Next wire bounded membership refresh with cross-tab ownership, a simple candidate generator and native bins, then test the full lifecycle. Stay within Milestone 3; cold-start tuning and scoring remain later milestones.
+
+
+## Milestone 3 completion decision record (2026-10-19)
+
+Discover is a separate shelf view using existing cabinet rendering and playback. Preparation is explicit and bounded to 120 membership checks per action, with resumable progress, cancellation and account-scoped Web Locks. Browsing/reload/focus never invokes provider membership checks. Generation waits for current membership observations for local Spotify album references; only positives enter a snapshot. Existing alphabetical and personal organization is unchanged.
+
+The baseline generator shuffles Wander candidates, uses records with no retained plays/completions for Digging, and requires two distinct retained completions plus 30 days without interaction for Forgotten Favorites. Shared round-robin assignment enforces 20 caps and zero overlap; `framework-1` identifies these simple rules. Artist/genre diversity, richer cold-start handling and weighted scoring remain Milestones 4–5. No collection-enable change was made.
+
+Persisted sets are stable for seven days. An explicit prepare can replace an expired set; neither opening bins nor periodic local reads regenerates it. Current eligibility filters the displayed set without refill. Reset/removal invalidates pending work and retires open discovery views while playback stays mounted. Read reconciliation runs locally on focus and every 15 seconds; no server polling added. Export/reset integration from the snapshot checkpoint is preserved. Only the latest snapshot is retained, device-locally.
+
+Milestone 3 is complete and tested locally; see discovery-progress.md for evidence and real-account testing limits. Stop before Milestone 4 and do not infer authorization to activate tracking or deploy.

@@ -4,7 +4,7 @@
 
 Milestone 3 — Generated-bin Framework.
 
-**Status: In progress — eligibility, reconciliation and snapshot storage checkpoints complete; discovery browsing UI is not implemented yet.** User authorized Milestone 3 on 2026-10-16. Stopped at a verified snapshot/export/reset boundary on 2026-10-17; continue Milestone 3 only next time. Milestone 2 is complete and pushed to GitHub.
+**Status: Milestone 3 complete (2026-10-19), local only.** Saved-membership reconciliation, persisted snapshots, baseline generation and all three native discovery bins are connected. Milestone 4 has not started. Tracking remains off by default.
 
 Set `NEXT_PUBLIC_ENGAGEMENT_ENABLED=true` **at build time** to exercise instrumentation. It is deliberately off in ordinary builds and `.env.example` pending provider-release review. The 2026-10-15 deployment includes these controls with collection explicitly disabled; see the latest deployment entry below.
 
@@ -96,30 +96,25 @@ The previous foundation remains in `app/lib/engagement.ts` and `tests/engagement
 3. **Device-local:** Web Locks coordinate same-origin tabs only, not different devices. No cross-device aggregate or sync exists; future sync needs deliberate session/reset semantics.
 4. **Unresolved imports:** inspection is deferred until album identity resolves within the selected opening; failed/cancelled resolution does not create a canonical event. Manual/demo records are intentionally excluded. Track availability changes during a session conservatively interrupt counting if the duration denominator changes.
 5. **Retention:** events and sessions are pruned independently at activation/hourly maintenance. Do not assume unlimited historical coverage, or that every retained event has a retained session. Active memory retry is capped; persistent storage failure can lose events once capped or the tab closes.
-6. **Saved-only discovery eligibility:** bounded provider check, separate local cache and pure eligibility rules now exist. A bounded cancellable coordinator exists; it is not mounted in UI yet. Imports/provenance never qualify on their own. Membership is a last-verified observation with seven-day expiry, not a live guarantee; future discovery must recheck unknown/expired entries and exclude known removals.
+6. **Saved-only discovery eligibility:** bounded provider check, separate local cache and pure eligibility rules now exist. The explicit Discover preparation flow uses the bounded cancellable coordinator and account-scoped Web Locks. Imports/provenance never qualify on their own. Membership is a last-verified observation with seven-day expiry, not a live guarantee; future discovery must recheck unknown/expired entries and exclude known removals.
 7. **Personal-bin action tracking is deferred:** it is not part of Milestone 1's enumerated inspect/play/duration/completion acceptance list. Existing personal memberships remain available as optional signals; event integration belongs with organizational work before scoring uses it.
 8. **Local history controls:** Download My Data exports saved history, album references and bins. Reset deletes only this account’s local behavioral history and pending writes, preserving collection and sign-in. Other devices and already-downloaded files are unaffected. The separate data export is not restorable. Older schema-v1 tabs must reload after the upgrade; a blocked reset reports failure without clearing history.
 
 ## Not yet implemented
 
-Milestone 2 is complete. Milestone 3 has the membership prerequisite implemented; persisted snapshots and the assignment framework now exist; the reconciliation UI and native discovery browsing remain. Milestones 4–8 are untouched. No recommendation scoring or cold-start tuning added.
+Milestones 1–3 are complete. Milestones 4–8 remain unimplemented: cold-start diversity tuning, weighted behavioral scoring, feedback controls, destination-picker improvements and evaluation metrics. Generated snapshots retain only the latest set, not historical archives.
 
 ## Exact next step
 
-Continue **Milestone 3 only**, starting from the snapshot-storage checkpoint:
+STOP before Milestone 4. Test this local build: open **Discover → Prepare discovery bins**, continue bounded batches as prompted, open Wander/Digging, reload and confirm stable order. Forgotten Favorites may be empty (requires two retained completions and no interaction for 30 days). Check that music continues while browsing and visiting settings. No real Spotify calls were made during automated verification; the authenticated provider path needs the user's real-account check.
 
-1. Read both discovery documents and Git status. Keep tracking default-off and do not deploy/push without authorization.
-2. Use the tested `useMembershipRefresh` / `createMembershipRefresh` coordinator when adding discovery UI. Runs are explicit, capped at three requests of 40 albums, and resume from committed membership. Before mounting, coordinate simultaneous tabs to avoid duplicate checks and verify hook cancellation/account removal in the actual UI. No requests on browse/render or automatic retries.
-3. Use `assignDiscoverySnapshot`, `visibleDiscoveryBins` and the engagement repository's generation-bound `writer().saveDiscovery` / `load().discovery`. The first current snapshot wins across tabs; expiry allows replacement. Add a simple generator feeding ordered candidates (not weighted scoring), with honest empty Forgotten Favorites until evidence exists. The assignment layer does not select/rank candidates itself. Fresh membership must gate generation and every rendered view; never refill or reshuffle within a snapshot.
-4. Integrate the three native-looking bin entries and short blurbs without altering alphabetical/custom organization, playback or bin browsing. Handle small/empty/unknown saved libraries. Preserve the implemented generated-state export/reset/local deletion integration; membership itself is provider library metadata, not behavioral history.
-5. Test reload/expiry/concurrency/account isolation/removal, zero overlap and unchanged library/playback; run tests/lint/typecheck/build, update handoff, commit and STOP before Milestone 4.
+The user previously asked about pushing Milestone 3, but this session explicitly finishes local implementation; no push or deployment performed. Obtain deployment/push direction after testing. Keep `NEXT_PUBLIC_ENGAGEMENT_ENABLED` default-off. Do not start Milestone 4 without explicit authorization.
 
 ## Last known stable commit
 
-- Before Milestone 3: `5af5c4b` (`docs: record mobile playback correction deployment`), pushed to GitHub. The app code is live with tracking disabled.
-- Last stable commit before this session: `3e14abe` (`feat: add cancellable saved-membership refresh`), local only.
-- This tested snapshot checkpoint is titled `feat: persist discovery snapshots with privacy controls`; obtain its hash from git log after commit.
-- No push, deployment, tracking activation or later-milestone work in this session.
+- Before this completion: `0bf2e1e` (`feat: persist discovery snapshots with privacy controls`), local only.
+- This completion is titled `feat: connect discovery bins to the record cabinet`; obtain its hash from git log after commit.
+- GitHub remains at `5af5c4b`; the production app remains the earlier deployment with tracking disabled. No push/deployment in this session.
 
 ## Milestone 1 correction — browsing during playback (2026-10-08)
 
@@ -322,3 +317,21 @@ Checks: 251 Node tests PASS; lint PASS; production webpack build/typecheck PASS;
 Known limits: only the latest snapshot is retained, not an archive of old bins; feedback remains Milestone 6. Candidate selection, UI lifecycle and cross-tab membership request ownership remain unfinished. A corrupt same-generation snapshot fails export/load closed; reset can clear it. Membership is device-local last-verified metadata and must be rechecked explicitly when stale. No changes to actual album organization, browsing, playback or parked native-media issues. Not pushed/deployed.
 
 Exact next step: add cross-tab ownership around membership refresh, implement the basic candidate generator and native discovery UI, then verify end-to-end generation/reload/expiry/removal/reset without remounting playback. Use the repository and assignment functions above; preserve default-off tracking and do not begin Milestone 4 heuristics. Last stable commit before this checkpoint: `3e14abe`.
+
+
+## Milestone 3 completion — native discovery bins (2026-10-19)
+
+Completed:
+- Added Discover alongside the existing arrangement tabs without changing persisted alphabetical/custom organization. Forgotten Favorites, Wander and Digging use the cabinet's existing wooden-bin rendering, sleeves, dividers, gestures and player; each has a short blurb and honest empty state. Generated ordering is preserved rather than sorted alphabetically. Random record on the Discover shelf draws only from its generated bins, and within a bin stays in that bin. Existing library Continue digging is preserved; generated-bin visits do not overwrite its bookmark.
+- Connected explicit preparation and saved-membership checks with checked/total progress, cancellation, partial continuation and errors. Each action caps at three requests of 40; all eligible local Spotify album references must have current positive/negative checks before generating. Positive checks alone qualify. Fresh checks are reused; no provider requests on browsing, reload, timer or focus. Account Web Locks exclude concurrent check runs without queueing; unsupported browsers fail with a message instead of uncoordinated requests.
+- Added a deliberately simple `framework-1` generator: shuffled candidates for Wander; no recorded plays/completions for Digging; at least two distinct completions and no retained interaction in 30 days for Forgotten Favorites. It uses retained first-party events only. No weights, genre/artist caps, personal-bin inference, external recommendations or later-milestone tuning. The shared assignment layer keeps caps and zero overlap.
+- Preparation persists a set once, respects the first-current-snapshot transaction rule and regenerates only on an explicit prepare after expiry/reset. Local read/focus checks reconcile saved membership and history reset without provider traffic. Stale/removed membership filters the display without refilling or mutating order. Changes to an open generated set retire the browsing view; they do not stop or remount the player. Pending preparation is invalidated by cancellation, account change, local removal and reset; generation fences remain the durable protection.
+- Updated privacy and test coverage. Existing export/reset includes generated snapshots. UI states when history collection is off; it does not silently enable collection to fill favorites.
+
+Files changed: `app/lib/discovery-generator.ts` (new), `app/use-discovery.ts` (new), `app/use-membership-refresh.ts`, `app/record-bin.tsx`, `app/record-bin.module.css`, `app/privacy/page.tsx`, `tests/discovery-snapshot.test.mjs`, `scripts/discovery-integration-smoke.cjs` (new), `scripts/engagement-integration-smoke.cjs`, and both discovery documents.
+
+Checks: 252 Node tests PASS; lint PASS with no warnings; production webpack build/typecheck PASS; diff check PASS. New real-browser integration at 390px/1400px with mocked Spotify PASS: no mount/browse requests; bounded checks/resume; negative membership exclusion; cancellation; 429 stopping; cross-tab request exclusion; three rendered bins; cap/no overlap; sleeve browsing and random navigation; stable reload; explicit expiry regeneration; removal filtering without persisted refill; reset from another tab; and unchanged playing SDK instance/no pause commands while browsing. Existing desktop/mobile navigation-player smoke PASS. Default-off export/reset integration PASS at both sizes, including snapshot export/reset and no synthetic behavioral history. Inspected both responsive screenshots; no horizontal overflow. Prior real-IDB snapshot persistence/concurrency/reset tests remain unchanged. No real provider calls or personal data used.
+
+Known limits: seven-day membership freshness is not real-time Spotify synchronization. Local changes from another tab are reconciled on focus or within 15 seconds; unavailable storage fails closed. Preparing a large library needs repeated explicit continuation, not an unattended request loop. Only the latest snapshot is stored locally; there is no cross-device discovery sync or historical archive. Forgotten Favorites can remain empty, especially with tracking off; Digging's evidence is limited to retained local history. Clock skew may reject provider checks conservatively. Native mobile media issues remain parked. No push or deployment.
+
+Exact next step: user testing of Discover with the real account, then an authorized push/deployment if desired. Milestone 3 is complete; stop before Milestone 4. Last stable commit before this completion: `0bf2e1e`.

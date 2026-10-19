@@ -57,7 +57,8 @@ function cookie() {
    if (process.env.EXPECT_DISABLED === 'true') {
     assert.equal(await page.getByRole('button', { name: 'Tracking debug', exact: true }).count(), 0);
     assert.equal(await page.getByText(/This test build keeps album browsing/).count(), 0);
-    assert.equal(await page.evaluate(async () => (await indexedDB.databases()).some(db => db.name?.startsWith('record-cabinet-engagement:'))), false);
+    // Discovery may open its shared repository while collection remains disabled.
+    // Empty exports below verify it does not create behavioral history.
     await page.getByText('Account and privacy', { exact: true }).click();
     const downloading = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Download My Data', exact: true }).click();

@@ -1,4 +1,5 @@
 "use client";
+import { useDiscovery } from "./use-discovery";
 import BinDividerTabs from "./bin-divider-tabs";
 import { binStackDepth, binDividers, binPositionKey, rememberedAlbumIndex } from "./lib/bin-dividers";
 import { useAccount } from "./account-context";
@@ -111,7 +112,14 @@ export default function RecordBin({ collection, genreEditing, onGenreUpdate }: {
   const [index, setIndex] = useState(0);
   const [arrangement, setArrangement] = useState<Arrangement>("artist");
   const [genreBinCount, setGenreBinCount] = useState(0);
-  const [activeBin, setActiveBin] = useState<Bin | null>(null);
+  const discovery = useDiscovery(collection);
+  const [discoveryView, setDiscoveryView] = useState(false);
+  const [selectedBin, setActiveBin] = useState<Bin | null>(null);
+  // Membership removals, expiry and reset immediately retire an open generated view.
+  // The player remains mounted independently below the cabinet browser.
+  const activeBin = selectedBin?.id.startsWith("discovery:")
+    ? discovery.bins.find(bin => bin.id === selectedBin.id && bin.albums.length > 0 && bin.albums.map(a => a.id).join() === selectedBin.albums.map(a => a.id).join()) ?? null
+    : selectedBin;
   const remembered = useRef<Record<string, string>>({});
   const shelfScroll = useRef(0);
   const binButtons = useRef(new Map<string, HTMLButtonElement>());
@@ -137,27 +145,32 @@ export default function RecordBin({ collection, genreEditing, onGenreUpdate }: {
     return () => window.removeEventListener("record-cabinet-organization", restoreOrganization);
   }, [organizationKey]);
   function saveOrganization(nextSystems = systems, nextId = systemId, nextArrangement = arrangement, nextGenreBinCount = genreBinCount) {
-    setGenreBinCount(nextGenreBinCount); setSystems(nextSystems); setSystemId(nextId); setArrangement(nextArrangement);
+    setDiscoveryView(false); setGenreBinCount(nextGenreBinCount); setSystems(nextSystems); setSystemId(nextId); setArrangement(nextArrangement);
     try { localStorage.setItem(organizationKey, JSON.stringify({ systems: nextSystems, systemId: nextId, arrangement: nextArrangement, genreBinCount: nextGenreBinCount })); window.dispatchEvent(new CustomEvent("record-cabinet-local-change", { detail: { scope: accountId } })); }
     catch { setStorageMessage("Changes are available for this visit, but this browser could not save them."); }
   }
   const system = systems.find(item => item.id === systemId);
   function createSystem(next: CustomSystem) { saveOrganization([...systems, next], next.id, activeBin ? arrangement : "custom"); }
   function updateSystem(next: CustomSystem) { saveOrganization(systems.map(item => item.id === next.id ? next : item)); }
-  const bins = useMemo(() => getBins(collection, arrangement, system, genreBinCount), [collection, arrangement, system, genreBinCount]);
+  const libraryBins = useMemo(() => getBins(collection, arrangement, system, genreBinCount), [collection, arrangement, system, genreBinCount]);
+  const bins = discoveryView && discovery.enabled ? discovery.bins : libraryBins;
   const allRecords = useMemo(() => getBins(collection, "all")[0], [collection]);
   const recentRecords = useMemo(() => recentBin(collection), [collection]);
   const randomPicker = useRef(createRecordShuffle());
   const albums = useMemo(() => { const currentAlbums = new Map(collection.map(album => [album.id, album])); return activeBin ? activeBin.albums.map(album => currentAlbums.get(album.id) ?? album) : collection; }, [activeBin, collection]);
-  const dividers = useMemo(() => binDividers(albums, arrangement === "artist" && activeBin?.id !== "all" && activeBin?.id !== "recent"), [albums, arrangement, activeBin?.id]);
+  const dividers = useMemo(() => binDividers(albums, arrangement === "artist" && !activeBin?.id.startsWith("discovery:") && activeBin?.id !== "all" && activeBin?.id !== "recent"), [albums, arrangement, activeBin?.id]);
   const reduced = !!useReducedMotion();
   const wrap = (n: number) => albums.length ? ((n % albums.length) + albums.length) % albums.length : 0;
   const [pulled, setPulled] = useState(false);
   const [flipped, setFlipped] = useState(false);
   const [flipPhase, setFlipPhase] = useState<"idle" | "lifting" | "lowering" | "turning" | "returning" | "returning-front">("idle");
+  // Retire invalid selections during reconciliation so they cannot reopen on a later read.
+  if (selectedBin?.id.startsWith("discovery:") && !activeBin) {
+    setActiveBin(null); setPulled(false); setFlipped(false); setFlipPhase("idle");
+  }
   useEffect(() => {
     const current = activeBin?.albums[index];
-    if (!current || flipPhase !== "idle") return;
+    if (!current || activeBin?.id.startsWith("discovery:") || flipPhase !== "idle") return;
     const binKey = binPositionKey(activeBin!.id, arrangement, systemId, genreBinCount);
     remembered.current[binKey] = current.id;
     try { localStorage.setItem(`${diggingKey}:bin:${binKey}`, current.id); } catch { /* Retain the position for this visit. */ }
@@ -278,6 +291,12 @@ export default function RecordBin({ collection, genreEditing, onGenreUpdate }: {
   }
 
   function randomRecord() {
+    if (!activeBin && discoveryView) {
+      const id = randomPicker.current(discovery.bins.flatMap(bin => bin.albums.map(record => record.id)));
+      const bin = discovery.bins.find(bin => bin.albums.some(record => record.id === id));
+      if (bin) openBin(bin, bin.albums.findIndex(record => record.id === id), true);
+      return;
+    }
     const selection = activeBin ?? allRecords;
     if (!selection) return;
     const id = randomPicker.current(selection.albums.map(record => record.id), activeBin ? album?.id : undefined);
@@ -458,8 +477,8 @@ export default function RecordBin({ collection, genreEditing, onGenreUpdate }: {
     {!activeBin ? <>
       <section className={styles.intro}><p className={styles.eyebrow}><span /> YOUR RECORD COLLECTION</p><h1>A little world<br />of good records.</h1><p>Pick a bin. Find something worth sitting with.</p></section>
       <section className={styles.shelfSection} aria-label="Record shelf">
-        <div className={styles.shelfToolbar}><span>ARRANGE BY</span><div role="group" aria-label="Arrange bins by"><button aria-pressed={arrangement === "artist"} onClick={() => saveOrganization(systems, systemId, "artist")}>Artist</button><button aria-pressed={arrangement === "album"} onClick={() => saveOrganization(systems, systemId, "album")}>Album</button><button aria-pressed={arrangement === "genre"} onClick={() => saveOrganization(systems, systemId, "genre")}>Genre</button><button aria-pressed={arrangement === "custom"} onClick={() => saveOrganization(systems, systemId || systems[0]?.id || "", "custom")}>My systems</button></div></div>
-        {arrangement === "genre" && <>
+        <div className={styles.shelfToolbar}><span>ARRANGE BY</span><div role="group" aria-label="Arrange bins by">{discovery.enabled && <button aria-pressed={discoveryView} onClick={() => setDiscoveryView(true)}>Discover</button>}<button aria-pressed={!discoveryView && arrangement === "artist"} onClick={() => saveOrganization(systems, systemId, "artist")}>Artist</button><button aria-pressed={!discoveryView && arrangement === "album"} onClick={() => saveOrganization(systems, systemId, "album")}>Album</button><button aria-pressed={!discoveryView && arrangement === "genre"} onClick={() => saveOrganization(systems, systemId, "genre")}>Genre</button><button aria-pressed={!discoveryView && arrangement === "custom"} onClick={() => saveOrganization(systems, systemId || systems[0]?.id || "", "custom")}>My systems</button></div></div>
+        {!discoveryView && arrangement === "genre" && <>
           <div className={styles.systemEditorBar}><label>Genre bins<select value={genreBinCount} onChange={event => saveOrganization(systems, systemId, arrangement, Number(event.target.value))}>
             <option value={0}>One bin per genre</option>
             {[1, 2, 3, 4, 5, 6].map(count => <option key={count} value={count}>{count === 1 ? "1 bin for all genres" : `Up to ${count} genre bins`}</option>)}
@@ -467,28 +486,37 @@ export default function RecordBin({ collection, genreEditing, onGenreUpdate }: {
           {genreBinCount > 0 && <p className={styles.shelfSummary}>Whole genres are grouped to balance bin sizes. Uncategorized stays separate.</p>}
           <GenreEditor albums={collection} disabled={!genreEditing} onUpdate={onGenreUpdate} />
         </>}
-        {arrangement === "custom" && <div className={styles.systemEditorBar}>
+        {!discoveryView && arrangement === "custom" && <div className={styles.systemEditorBar}>
           {arrangement === "custom" && systems.length > 0 && !editorOpen && <label>System<select value={systemId} onChange={event => saveOrganization(systems, event.target.value, "custom")}>{systems.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
           <button aria-expanded={editorOpen} aria-controls="system-editor" onClick={() => setEditorOpen(!editorOpen)}>{editorOpen ? "Done editing bins" : systems.length ? "Edit bins" : "Create your own bins"}</button>
         </div>}
-        {arrangement === "custom" && editorOpen && <div id="system-editor"><BinOrganizer collection={collection} systems={systems} systemId={systemId} onSelect={id => saveOrganization(systems, id, "custom")} onCreate={createSystem} onChange={updateSystem} /></div>}
+        {!discoveryView && arrangement === "custom" && editorOpen && <div id="system-editor"><BinOrganizer collection={collection} systems={systems} systemId={systemId} onSelect={id => saveOrganization(systems, id, "custom")} onCreate={createSystem} onChange={updateSystem} /></div>}
+        {discoveryView && discovery.enabled && <section aria-label="Discovery preparation" className={styles.discoveryControls}>
+          <p>Small paths through your Spotify saved albums. Each set stays for seven days.</p>
+          {process.env.NEXT_PUBLIC_ENGAGEMENT_ENABLED !== "true" && <p>History collection is off. These bins use only history already saved on this device.</p>}
+          <button disabled={discovery.busy} onClick={() => void discovery.prepare()}>{discovery.current ? "Check saved albums" : discovery.progress.status === "partial" ? "Continue preparing bins" : "Prepare discovery bins"}</button>
+          {discovery.busy && <button onClick={discovery.cancel}>Cancel</button>}
+          <p role="status">{discovery.message}{discovery.progress.total > 0 && ` ${discovery.progress.checked} of ${discovery.progress.total} albums checked.`}</p>
+          {discovery.expiresAt && <p>This set lasts until {new Date(discovery.expiresAt).toLocaleDateString()}.</p>}
+        </section>}
         {storageMessage && <p role="status">{storageMessage}</p>}
-        {resumeDig && <button className={styles.continueDigging} onClick={continueDigging}><strong>Continue digging</strong><span>{resumeDig.album.title} · {resumeDig.bin.label}</span></button>}
+        {!discoveryView && resumeDig && <button className={styles.continueDigging} onClick={continueDigging}><strong>Continue digging</strong><span>{resumeDig.album.title} · {resumeDig.bin.label}</span></button>}
         <div className={styles.shelfChoices}>
           <button ref={node => { if (node) binButtons.current.set("all", node); else binButtons.current.delete("all"); }} disabled={!allRecords} onClick={() => allRecords && openBin(allRecords)} aria-label={`Open All records, ${allRecords?.albums.length ?? 0} ${(allRecords?.albums.length ?? 0) === 1 ? "record" : "records"}`}>All records</button>
           <button disabled={!recentRecords.albums.length} onClick={() => openBin(recentRecords)} aria-label={`Open Recently added, ${recentRecords.albums.length} records`}>Recently added</button>
-          <button aria-label="Random record" disabled={!allRecords} onClick={randomRecord}>Random record</button>
+          <button aria-label="Random record" disabled={discoveryView ? !discovery.bins.some(bin => bin.albums.length) : !allRecords} onClick={randomRecord}>Random record</button>
         </div>
-        <p className={styles.shelfSummary} role="status">{collection.length} records · {bins.length} bins · A–Z{arrangement === "genre" ? " · Records can appear in more than one genre" : ""}</p>
+        <p className={styles.shelfSummary} role="status">{collection.length} records · {bins.length} bins{!discoveryView && " · A–Z"}{!discoveryView && arrangement === "genre" ? " · Records can appear in more than one genre" : ""}</p>
         {collection.length === 0 && <p className={styles.armHelp}>Your shelf is empty. Saved albums will appear here.</p>}
         <div className={styles.shelfGrid}>
           {bins.map((bin) => <button key={bin.id} ref={(node) => { if (node) binButtons.current.set(bin.id, node); else binButtons.current.delete(bin.id); }} className={styles.shelfBin} disabled={!bin.albums.length} onClick={() => openBin(bin)} aria-label={`Open ${bin.label}, ${bin.albums.length} ${bin.albums.length === 1 ? "record" : "records"}`}>
             <span className={styles.miniBin} aria-hidden="true"><span className={styles.miniBinBack} />{bin.albums.slice(0, 3).reverse().map((record, i, items) => <span key={record.id} className={`${styles.shelfSleeve} ${styles[record.color]}`} style={{ bottom: 39 + (items.length - 1 - i) * 12, transform: `rotate(${(items.length - 1 - i) * -3}deg)` }}>{record.artworkUrl ? <Image src={record.artworkUrl} alt="" fill unoptimized sizes="200px" className={styles.spotifyArtwork} /> : <><span>{record.title}</span><i>◉</i></>}</span>)}<span className={styles.miniBinFront}><span>{bin.label}</span></span></span>
+            {discoveryView && "blurb" in bin && <span className={styles.discoveryBlurb}>{String(bin.blurb)}{!bin.albums.length && "empty" in bin && <span>{String(bin.empty)}</span>}</span>}
           </button>)}
         </div>
       </section>
     </> : <>
-    <section className={styles.binIntro}><button className={styles.backToShelf} onClick={backToShelf}>← Back to shelf</button><button className={styles.randomRecord} onClick={randomRecord}>Random record</button><p className={styles.eyebrow}>{arrangement} / A–Z</p><h1 ref={binHeading} tabIndex={-1}>{activeBin.label}</h1><p>{albums.length === 1 ? "One good record. Take a closer look." : "Slow down. Dig a little. Find your next favorite."}</p></section>
+    <section className={styles.binIntro}><button className={styles.backToShelf} onClick={backToShelf}>← Back to shelf</button><button className={styles.randomRecord} onClick={randomRecord}>Random record</button><p className={styles.eyebrow}>{activeBin.id.startsWith("discovery:") ? "DISCOVER" : `${arrangement} / A–Z`}</p><h1 ref={binHeading} tabIndex={-1}>{activeBin.label}</h1><p>{albums.length === 1 ? "One good record. Take a closer look." : "Slow down. Dig a little. Find your next favorite."}</p></section>
     <section className={styles.collection} aria-label={`${activeBin.label} album bin`}>
       <div className={styles.binHeading}><span>{activeBin.label.toUpperCase()}</span><span>{albums.length} {albums.length === 1 ? "RECORD" : "RECORDS"}</span></div>
       <div className={styles.stage} onKeyDown={(event) => { if (event.key === "Escape" && pulled) returnRecord(); }}>
