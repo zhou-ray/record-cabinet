@@ -4,7 +4,7 @@
 
 Milestone 3 — Generated-bin Framework.
 
-**Status: Milestone 3 complete (2026-10-19), local only.** Saved-membership reconciliation, persisted snapshots, baseline generation and all three native discovery bins are connected. Milestone 4 has not started. Tracking remains off by default.
+**Status: Milestone 3 complete, user-tested, pushed and deployed (2026-10-19).** Saved-membership reconciliation, persisted snapshots, baseline generation and all three native discovery bins are connected. Milestone 4 has not started. Tracking remains off by default.
 
 Set `NEXT_PUBLIC_ENGAGEMENT_ENABLED=true` **at build time** to exercise instrumentation. It is deliberately off in ordinary builds and `.env.example` pending provider-release review. The 2026-10-15 deployment includes these controls with collection explicitly disabled; see the latest deployment entry below.
 
@@ -106,15 +106,13 @@ Milestones 1–3 are complete. Milestones 4–8 remain unimplemented: cold-start
 
 ## Exact next step
 
-STOP before Milestone 4. Test this local build: open **Discover → Prepare discovery bins**, continue bounded batches as prompted, open Wander/Digging, reload and confirm stable order. Forgotten Favorites may be empty (requires two retained completions and no interaction for 30 days). Check that music continues while browsing and visiting settings. No real Spotify calls were made during automated verification; the authenticated provider path needs the user's real-account check.
-
-The user previously asked about pushing Milestone 3, but this session explicitly finishes local implementation; no push or deployment performed. Obtain deployment/push direction after testing. Keep `NEXT_PUBLIC_ENGAGEMENT_ENABLED` default-off. Do not start Milestone 4 without explicit authorization.
+STOP before Milestone 4. The user tested the completed Discover flow locally and reported everything in order, then authorized GitHub push and production deployment. Live site: https://record-cabinet-livid.vercel.app. Next: a signed-in live-site check of Discover and playback; public desktop/mobile smoke passed. Start Milestone 4 only on explicit authorization. Keep history collection default-off.
 
 ## Last known stable commit
 
-- Before this completion: `0bf2e1e` (`feat: persist discovery snapshots with privacy controls`), local only.
-- This completion is titled `feat: connect discovery bins to the record cabinet`; obtain its hash from git log after commit.
-- GitHub remains at `5af5c4b`; the production app remains the earlier deployment with tracking disabled. No push/deployment in this session.
+- Implemented and user-tested Milestone 3: `2f37231` (`feat: connect discovery bins to the record cabinet`), pushed to GitHub and deployed to production.
+- Production deployment: `dpl_6M2micyU4JLLLLnFERtSccNdx6Nf`, with `NEXT_PUBLIC_ENGAGEMENT_ENABLED=false` explicitly supplied at build time.
+- This documentation-only follow-up records release verification; no later milestone work.
 
 ## Milestone 1 correction — browsing during playback (2026-10-08)
 
@@ -335,3 +333,12 @@ Checks: 252 Node tests PASS; lint PASS with no warnings; production webpack buil
 Known limits: seven-day membership freshness is not real-time Spotify synchronization. Local changes from another tab are reconciled on focus or within 15 seconds; unavailable storage fails closed. Preparing a large library needs repeated explicit continuation, not an unattended request loop. Only the latest snapshot is stored locally; there is no cross-device discovery sync or historical archive. Forgotten Favorites can remain empty, especially with tracking off; Digging's evidence is limited to retained local history. Clock skew may reject provider checks conservatively. Native mobile media issues remain parked. No push or deployment.
 
 Exact next step: user testing of Discover with the real account, then an authorized push/deployment if desired. Milestone 3 is complete; stop before Milestone 4. Last stable commit before this completion: `0bf2e1e`.
+
+
+## Authorized Milestone 3 release (2026-10-19)
+
+The user reported the real-account local test worked, then authorized pushing and deploying. Pushed `main` from `5af5c4b` through `2f37231` to https://github.com/zhou-ray/record-cabinet. Deployed that clean application commit to the existing Vercel project as `dpl_6M2micyU4JLLLLnFERtSccNdx6Nf`; production alias is https://record-cabinet-livid.vercel.app (immutable deployment: https://record-cabinet-n7s5mbfro-ray-s-stuff.vercel.app).
+
+Vercel production webpack build and TypeScript checks passed. Build explicitly received `NEXT_PUBLIC_ENGAGEMENT_ENABLED=false`. Live Chrome verification at 390px and 1400px passed for public demo, settings and privacy pages: HTTP 200, no JavaScript page errors or horizontal overflow. Served JavaScript contains the new discovery preparation UI and the compiled history-collection-off copy; public settings exposes no Tracking debug button. No automated authenticated Spotify calls or playback on production. Signed-in live Discover/playback remains a user check; earlier local mocked and real-account tests are recorded above.
+
+Files changed in this release follow-up: `docs/discovery-progress.md` only. Last stable app commit: `2f37231`. Milestone 3 is shipped; Milestone 4 untouched. Exact next step: signed-in live smoke test, then await authorization for Milestone 4.
