@@ -286,7 +286,7 @@ export default function LibraryScreen({ connected, demo, legacySession = false }
     <nav className="cabinet-navigation" aria-label="Cabinet navigation">{settings ? <CabinetLink href="/">← Back to records</CabinetLink> : <CabinetLink href="/settings">Library & settings</CabinetLink>}</nav>
     {settings && <header className="settings-heading"><h1>Library & settings</h1><p>Add records, organize your library, and manage your account.</p></header>}
     {!settings && !connected && storageReady && !albums?.some(album => album.source !== "mock") && <FirstVisit onDemo={() => setShowDemo(true)} />}
-    {connected && storageReady && <ListeningGuide count={albums?.filter(album => album.source !== "mock").length ?? 0} settings={settings} />}
+    <ListeningGuide count={albums?.length ?? 0} settings={settings} />
     {mobileSetup && <section className="library-message" role="alert"><h2>Spotify connection unavailable</h2><p>This address supports browsing, but Spotify sign-in needs Record Cabinet’s secure address restored.</p><p>Your saved records are still available.</p></section>}
     <div hidden={settings}>
     {albums && <RecordBin key={showDemo ? "demo" : "collection"} collection={showDemo ? demoCollection : albums} genreEditing={!showDemo && albums.some(album => album.source !== "mock") && storageReady && !saving && (progress.complete || !!error)} onGenreUpdate={updates => { const next = mergeAlbums(latestAlbums.current ?? [], updates); latestAlbums.current = next; setAlbums(next); }} />}

@@ -60,6 +60,7 @@ function cookie() {
    });db.close();
   },account);
   await page.reload();
+  await page.getByRole('button',{name:'Start tour',exact:true}).click();
   const guide = page.getByRole('region',{name:'Cabinet tutorial'});
   await guide.waitFor();
   for (let step=0;step<4;step++) await guide.getByRole('button',{name:'Next tip',exact:true}).click();
