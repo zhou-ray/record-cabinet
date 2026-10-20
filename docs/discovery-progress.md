@@ -395,3 +395,17 @@ Milestone 4 testing remains local: generate a new set after expiry and verify Do
 - Release follow-up changes only this document. Last stable application commit: `fed892b`.
 - Known limits: automated live checks are unauthenticated; real-account Spotify playback and fresh cold-start generation remain user checks. Existing current `framework-1` sets intentionally remain unchanged until expiry/reset and explicit preparation. No history was reset and no tracking enabled.
 - Exact next step: refresh the live site, confirm remembered bin thumbnails, browse while playing, and inspect a newly prepared set after its normal expiry for Milestone 4 artist variety. Do not start Milestone 5 without authorization.
+
+## Preparation and tutorial follow-up (2026-10-20)
+
+User authorized these usability changes before Milestone 5. One explicit Prepare/Check action now completes remaining saved-membership batches sequentially with 1.5-second pauses. Existing Web Lock, request timeouts, writer invalidation and per-batch checkpoints remain; cancellation interrupts the pacing wait as well as requests. Errors and 429 stop without automatic retry; a later click reuses completed checks. No new provider endpoints, tracking activation or scoring changes.
+
+Replaced the first-listen checklist with a five-step nonmodal tutorial: bins, browsing/dividers, sleeve flip/return, vinyl playback, and turntable controls. Includes back/next, close, a “Don’t show automatically again” checkbox and replay from Library & settings. Existing dismissed/first-play accounts can reopen it there. Tutorial completion persists before the guide closes. It is instructional rather than automatically advancing on gestures, and is currently shown for connected accounts; the public demo retains its welcome instructions.
+
+Files: `app/lib/membership-refresh.ts`, `app/use-membership-refresh.ts`, `app/listening-guide.tsx`, `tests/membership-refresh.test.mjs`, `scripts/discovery-integration-smoke.cjs`, and both discovery documents.
+
+Checks: 259 unit tests passed; lint and production webpack build/TypeScript passed. Browser verification recorded below. Known limits: pacing reduces bursts but does not guarantee available Spotify quota; errors require explicit restart, which skips fresh completed checks. Tutorial dismissal remains local to the account/device. No deployment in this follow-up. Last stable production app commit `fed892b`; starting repository commit `9b79af5`.
+
+Exact next step: user tests one-click Prepare with a library needing checks, Cancel/resume, and tutorial replay from Settings. Await release authorization; do not begin Milestone 5.
+
+Browser verification: real Chrome against the production build with mocked Spotify passed at 390px/1400px. Covered all five tutorial steps, saved dismissal after reload, Settings replay, single-click four-batch completion for 125 albums, fresh-check reuse, cancellation, cross-tab exclusion, 429 stopping and explicit resume, snapshot stability/expiry, thumbnails, uninterrupted player instance and cross-tab reset. No live Spotify requests. A dismissal/reload race found during testing was fixed by awaiting persistence before closing the guide.

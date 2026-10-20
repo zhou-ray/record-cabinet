@@ -15,7 +15,7 @@ export const emptyMembershipProgress = (): MembershipProgress => ({ status: "idl
 /** Explicit, bounded runs. Previously committed batches are the resume checkpoint. */
 export function createMembershipRefresh(options: {
   accountId: string; storage: Storage; apiFetch: typeof fetch;
-  progress: (value: MembershipProgress) => void; now?: () => number;
+  progress: (value: MembershipProgress) => void; now?: () => number; continuous?: boolean; pauseMs?: number;
 }) {
   const now = options.now ?? Date.now;
   let controller: AbortController | null = null, running: Promise<void> | null = null, closed = false;
@@ -45,7 +45,17 @@ export function createMembershipRefresh(options: {
         publish(summary);
         const ids = nextMembershipBatch(library.albums, records, now());
         if (!ids.length) { publish({ status: "complete", message: "Saved-album checks are up to date." }); return; }
-        if (batchIndex === 3) { publish({ status: "partial", message: "Progress saved. Continue to check the remaining albums." }); return; }
+        if (!options.continuous && batchIndex === 3) { publish({ status: "partial", message: "Progress saved. Continue to check the remaining albums." }); return; }
+        if (options.continuous && batchIndex > 0) {
+          publish({ message: "Checking your library in paced batches. You can keep browsing." });
+          await new Promise<void>((resolve, reject) => {
+            const abort = () => { clearTimeout(timer); reject(signal.reason); };
+            const timer = setTimeout(() => { signal.removeEventListener("abort", abort); resolve(); }, options.pauseMs ?? 1500);
+            signal.addEventListener("abort", abort, { once: true });
+            if (signal.aborted) abort();
+          });
+          signal.throwIfAborted();
+        }
         publish({ requests: state.requests + 1 });
         const response = await options.apiFetch("/api/spotify/library", {
           method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store",

@@ -7,12 +7,12 @@ const {createMembershipRefresh}=load('membership-refresh');
 const {mergeMembership}=load('saved-membership');
 const accountId='a'.repeat(64),now=100000;
 const album=id=>({id:`spotify:${id}`,source:'spotify',playback:{kind:'spotify',uri:`spotify:album:${id}`}});
-function harness(count=81){
+function harness(count=81,options={}){
  let records=[],response,epoch=0,failSave=false,loads=0;const calls=[],progress=[];
  const storage={load:async()=>{loads++;return{albums:Array.from({length:count},(_,i)=>album(i))};},loadMembership:async()=>records,
  membershipWriter:async()=>{const captured=epoch;return{save:async(batch,signal)=>{signal.throwIfAborted();if(failSave||captured!==epoch)throw Error('Storage unavailable');records=mergeMembership(records,batch.records);}};}};
  const apiFetch=async(_url,init)=>{const ids=JSON.parse(init.body).membershipAlbumIds;calls.push(ids);return response?response(ids):Response.json({accountId,records:ids.map(albumId=>({albumId,saved:!albumId.endsWith(':1'),checkedAt:now,source:'spotify-library-contains'}))});};
- const runner=createMembershipRefresh({accountId,storage,apiFetch,progress:p=>progress.push(p),now:()=>now});
+ const runner=createMembershipRefresh({accountId,storage,apiFetch,progress:p=>progress.push(p),now:()=>now,...options});
  return{runner,calls,progress,storage,apiFetch,records:()=>records,loads:()=>loads,respond:fn=>{response=fn;},failSave:()=>{failSave=true;},clear:()=>{epoch++;records=[];}};
 }
 test('explicit refresh is sequential, capped, resumable and avoids fresh positive and negative checks',async()=>{
@@ -50,4 +50,20 @@ test('storage failure, empty collection and guest identity never manufacture com
  const h=harness();h.failSave();await h.runner.start();assert.equal(h.progress.at(-1).status,'error');assert.equal(h.calls.length,1);assert.equal(h.records().length,0);
  const empty=harness(0);await empty.runner.start();assert.equal(empty.progress.at(-1).status,'complete');assert.equal(empty.calls.length,0);
  const guest=createMembershipRefresh({accountId:'guest',storage:h.storage,apiFetch:h.apiFetch,progress:()=>{}});const before=h.loads();await guest.start();assert.equal(h.loads(),before);
+});
+
+test('continuous preparation finishes all batches with pacing and reuses checkpoints',async()=>{
+ const h=harness(161,{continuous:true,pauseMs:5});
+ await h.runner.start();
+ assert.deepEqual(h.calls.map(ids=>ids.length),[40,40,40,40,1]);
+ assert.equal(h.progress.at(-1).status,'complete');
+ await h.runner.start();assert.equal(h.calls.length,5);
+});
+test('cancel during pacing stops before another request and resume uses saved checks',async()=>{
+ const h=harness(81,{continuous:true,pauseMs:50});
+ const run=h.runner.start();
+ while(h.records().length<40)await new Promise(r=>setImmediate(r));
+ h.runner.cancel();await run;
+ assert.equal(h.calls.length,1);assert.equal(h.progress.at(-1).status,'cancelled');
+ await h.runner.start();assert.deepEqual(h.calls.map(ids=>ids.length),[40,40,1]);
 });

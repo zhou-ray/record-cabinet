@@ -9,7 +9,7 @@ export function useMembershipRefresh() {
   const [result, setResult] = useState(() => ({ accountId, progress: emptyMembershipProgress() }));
   const current = useRef<ReturnType<typeof createMembershipRefresh> | null>(null);
   useEffect(() => {
-    const refresh = createMembershipRefresh({ accountId, storage, apiFetch, progress: progress => setResult({ accountId, progress }) });
+    const refresh = createMembershipRefresh({ accountId, storage, apiFetch, continuous: true, progress: progress => setResult({ accountId, progress }) });
     current.current = refresh;
     // Permanent for this mounted controller: don't allow a new run while deletion drains.
     const remove = () => refresh.dispose();

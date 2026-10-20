@@ -59,13 +59,21 @@ function cookie() {
     tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
    });db.close();
   },account);
-  await page.reload();await page.getByRole('link',{name:'← Back to records',exact:true}).click();
+  await page.reload();
+  const guide = page.getByRole('region',{name:'Cabinet tutorial'});
+  await guide.waitFor();
+  for (let step=0;step<4;step++) await guide.getByRole('button',{name:'Next tip',exact:true}).click();
+  await guide.getByRole('heading',{name:'Settle in and listen',exact:true}).waitFor();
+  await guide.getByRole('button',{name:'Finish tutorial',exact:true}).click();
+  await page.getByRole('button',{name:'How to use the cabinet',exact:true}).waitFor();
+  await page.reload();
+  await page.getByRole('button',{name:'How to use the cabinet',exact:true}).click();
+  await guide.getByRole('heading',{name:'Choose a bin',exact:true}).waitFor();
+  await guide.getByRole('button',{name:'Close tutorial',exact:true}).click();
+  await page.getByRole('link',{name:'← Back to records',exact:true}).click();
   await page.getByRole('button',{name:'Discover',exact:true}).click();
   assert.equal(requests,0,'no checks on mount or navigation');
   await page.getByRole('button',{name:'Prepare discovery bins',exact:true}).click();
-  await page.getByRole('button',{name:'Continue preparing bins',exact:true}).waitFor();
-  assert.equal(requests,3,'bounded run');
-  await page.getByRole('button',{name:'Continue preparing bins',exact:true}).click();
   await page.getByRole('button',{name:'Check saved albums',exact:true}).waitFor();
   assert.equal(requests,4,'resume only remaining five');
   const read=()=>page.evaluate(async account=>{
@@ -137,8 +145,6 @@ function cookie() {
   mode='error';await page.getByRole('button',{name:'Prepare discovery bins',exact:true}).click();
   await page.getByText(/Spotify needs a pause/).waitFor();assert.equal(requests,6);
   mode='ok';await page.getByRole('button',{name:'Prepare discovery bins',exact:true}).click();
-  await page.getByRole('button',{name:'Continue preparing bins',exact:true}).waitFor();
-  await page.getByRole('button',{name:'Continue preparing bins',exact:true}).click();
   await page.getByRole('button',{name:'Check saved albums',exact:true}).waitFor();
   assert.notEqual((await read()).snapshot.id,first.snapshot.id,'expired snapshot regenerated');
   assert.equal((await read()).snapshot.version,'cold-start-1','expired old set upgrades on preparation');
