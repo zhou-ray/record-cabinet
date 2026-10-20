@@ -4,7 +4,7 @@
 
 Milestone 4 — Cold-start Heuristics.
 
-**Status: Milestone 4 complete locally (2026-10-19).** User authorized this milestone after approving the local arrow layout fix. Artist-balanced Wander, exploration tiers for Digging, and conservative Forgotten Favorites are implemented and verified. Milestone 5 has not started. Tracking remains off by default. Milestone 3 remains the production release.
+**Status: Milestone 4 deployed (2026-10-20).** Artist-balanced Wander, exploration tiers for Digging, and conservative Forgotten Favorites are implemented and verified. The user confirmed the remembered-position thumbnails and authorized pushing/deploying both changes. Milestone 5 has not started. Tracking remains off by default. Production application commit: `fed892b`.
 
 Set `NEXT_PUBLIC_ENGAGEMENT_ENABLED=true` **at build time** to exercise instrumentation. It is deliberately off in ordinary builds and `.env.example` pending provider-release review. The 2026-10-15 deployment includes these controls with collection explicitly disabled; see the latest deployment entry below.
 
@@ -385,3 +385,13 @@ Milestone 4 testing remains local: generate a new set after expiry and verify Do
 - Known limitations: browsers blocking localStorage fall back to initial shelf previews; bookmarks are not synced between devices. Real Spotify was not called during verification.
 - Last stable commit before this change: `3b3e573`. This adjustment and Milestone 4 remain local; production is still the arrow-fix release `49d5102`.
 - Exact next step: manually browse several records in a bin, return to the shelf, and confirm the front cover matches; reload and reopen to confirm the same place. Await deployment authorization and real-account Milestone 4 verification. Do not start Milestone 5.
+
+
+## Authorized Milestone 4 and thumbnail release (2026-10-20)
+
+- User confirmed thumbnail behavior and authorized GitHub push and production deployment. Committed thumbnail changes as `fed892b` and pushed `main`, including Milestone 4, to https://github.com/zhou-ray/record-cabinet.
+- Deployed application commit `fed892b` to https://record-cabinet-livid.vercel.app. Deployment: `dpl_2Wem8Zq4WArU4zyDPyKoBdp67cBF`; immutable URL: https://record-cabinet-km903vuu9-ray-s-stuff.vercel.app. Explicit build setting: `NEXT_PUBLIC_ENGAGEMENT_ENABLED=false`.
+- Checks: previously verified unchanged application tree (257 tests, lint, production build, desktop/mobile discovery integration); release diff check; Vercel production webpack build and TypeScript passed. Live Chrome public-demo smoke passed at 390px and 1400px: 60 demo records, divider navigation, reload persistence, no horizontal overflow, no page errors, no Spotify provider calls.
+- Release follow-up changes only this document. Last stable application commit: `fed892b`.
+- Known limits: automated live checks are unauthenticated; real-account Spotify playback and fresh cold-start generation remain user checks. Existing current `framework-1` sets intentionally remain unchanged until expiry/reset and explicit preparation. No history was reset and no tracking enabled.
+- Exact next step: refresh the live site, confirm remembered bin thumbnails, browse while playing, and inspect a newly prepared set after its normal expiry for Milestone 4 artist variety. Do not start Milestone 5 without authorization.
