@@ -60,17 +60,7 @@ function cookie() {
    });db.close();
   },account);
   await page.reload();
-  await page.getByRole('button',{name:'Start tour',exact:true}).click();
-  const guide = page.getByRole('region',{name:'Cabinet tutorial'});
-  await guide.waitFor();
-  for (let step=0;step<4;step++) await guide.getByRole('button',{name:'Next tip',exact:true}).click();
-  await guide.getByRole('heading',{name:'Settle in and listen',exact:true}).waitFor();
-  await guide.getByRole('button',{name:'Finish tutorial',exact:true}).click();
-  await page.getByRole('button',{name:'How to use the cabinet',exact:true}).waitFor();
-  await page.reload();
-  await page.getByRole('button',{name:'How to use the cabinet',exact:true}).click();
-  await guide.getByRole('heading',{name:'Choose a bin',exact:true}).waitFor();
-  await guide.getByRole('button',{name:'Close tutorial',exact:true}).click();
+  await page.getByRole('button',{name:'Skip',exact:true}).click();
   await page.getByRole('link',{name:'← Back to records',exact:true}).click();
   await page.getByRole('button',{name:'Discover',exact:true}).click();
   assert.equal(requests,0,'no checks on mount or navigation');

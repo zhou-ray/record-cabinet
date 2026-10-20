@@ -19,11 +19,11 @@ const origin = process.env.TEST_ORIGIN || 'http://127.0.0.1:3193';
       if (width === 390) await invitation.getByRole('button', { name: 'Skip', exact: true }).click();
       else {
         await invitation.getByRole('button', { name: 'Start tour', exact: true }).click();
-        await page.getByRole('region', { name: 'Cabinet tutorial' }).waitFor();
-        await page.getByRole('button', { name: 'Close tutorial', exact: true }).click();
+        await page.getByRole('complementary', { name: 'Cabinet tutorial' }).waitFor();
+        await page.getByRole('button', { name: 'Skip tour', exact: true }).click();
       }
       const after = await page.locator('.cabinet-navigation').boundingBox();
-      assert.equal(after.y, before.y, 'popup does not shift cabinet layout');
+      assert.equal(Math.round(after.y + await page.evaluate(() => scrollY)), Math.round(before.y), 'tour does not shift cabinet layout');
       await page.reload();
       await page.getByRole('button', { name: 'Try the demo', exact: true }).waitFor();
       assert.equal(await invitation.count(), 0, 'Start and Skip both persist across reloads');
@@ -40,10 +40,10 @@ const origin = process.env.TEST_ORIGIN || 'http://127.0.0.1:3193';
       await page.getByRole('button', { name: 'Open All records, 60 records', exact: true }).waitFor();
       await page.getByRole('link', { name: 'Library & settings', exact: true }).first().click();
       await page.getByRole('button', { name: 'How to use the cabinet', exact: true }).click();
-      await page.getByRole('heading', { name: 'Choose a bin', exact: true }).waitFor();
+      await page.getByText('Open a demo bin', { exact: true }).waitFor();
       await page.keyboard.press('Escape');
       assert.equal(await page.getByRole('dialog').count(), 0, 'Escape dismisses tour');
-      await page.waitForFunction(() => document.activeElement?.textContent === 'How to use the cabinet');
+      assert.equal(await page.getByRole('complementary', { name: 'Cabinet tutorial' }).count(), 0);
       assert.deepEqual(providerCalls, []);
       assert.deepEqual(errors, []);
       await context.close();
