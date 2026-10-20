@@ -108,13 +108,13 @@ Milestones 1–4 are complete. Milestones 5–8 remain unimplemented: weighted b
 
 STOP before Milestone 5. Milestone 4 is ready for local review. Existing current seven-day snapshots deliberately retain their records/order and `framework-1` version; a newly prepared set after expiry or personalization reset uses `cold-start-1`. Do not reset personal history merely to inspect the change without considering deletion. Automated fixtures verify old-to-new transitions and diverse/sparse libraries without touching personal data.
 
-No push/deployment was requested for this milestone. The earlier arrow-position fix and this milestone are local only. Await user testing/release direction and explicit Milestone 5 authorization. Preserve default-off history collection. The discussed single-click auto-continuation of preparation remains an unimplemented usability follow-up, not part of these selection changes.
+No push/deployment was requested for this milestone. The arrow-position fix was deployed separately on 2026-10-20; Milestone 4 remains local only. Await user testing/release direction and explicit Milestone 5 authorization. Preserve default-off history collection. The discussed single-click auto-continuation of preparation remains an unimplemented usability follow-up, not part of these selection changes.
 
 ## Last known stable commit
 
 - Before Milestone 4: `49d5102` (`fix: keep browsing arrows above variable album titles`), local only and user-approved.
 - Milestone 4 completion is titled `feat: add discovery cold-start heuristics`; obtain its hash from git log after commit.
-- GitHub release handoff: `1e1772e`. Production application: `2f37231`, deployment `dpl_6M2micyU4JLLLLnFERtSccNdx6Nf`, with history collection explicitly disabled.
+- GitHub release handoff: `1e1772e`. Production application: `49d5102` (arrow fix only), deployment `dpl_HEA5vgdMgMVCz6RF6yUzSnRG5X2A`, with history collection explicitly disabled.
 
 ## Milestone 1 correction — browsing during playback (2026-10-08)
 
@@ -365,3 +365,12 @@ Checks: 257 Node tests PASS; lint PASS with no warnings; production webpack buil
 Known limits: history is retained device-local evidence, not complete Spotify listening history; with collection off, only previously retained events inform selection. Artist diversity uses primary credits and is limited by metadata quality and the finite eligible pool. Digging prioritizes records left after Wander's diversity selection, so artist spread can place an untouched record in Wander instead. Small collections produce smaller bins; a one-record collection puts it in Wander to avoid duplication. The 30-day/two-completion favorites rule is unchanged, not tuned with learned or weighted scores. There is no recency weighting, listening-duration scoring, personal-bin inference, feedback learning or evaluation dashboard (later milestones). Existing sets remain stable until expiry/reset. Preparation still uses explicit bounded continuation.
 
 Exact next step: stop at completed Milestone 4. User review and authorized release are next; do not begin Milestone 5 without instruction. Last stable commit before this milestone: `49d5102`. No push/deployment in this session.
+
+
+## Arrow-fix-only production release (2026-10-20)
+
+User authorized deploying the arrow fix and requested Milestone 4 testing guidance. Exported the exact `49d5102` tree to an isolated temporary directory and deployed it to the existing project; did not deploy local Milestone 4 (`e717a78`) or alter the working app checkout. Vercel deployment `dpl_HEA5vgdMgMVCz6RF6yUzSnRG5X2A` is live at https://record-cabinet-livid.vercel.app, immutable URL https://record-cabinet-c47i0kce8-ray-s-stuff.vercel.app. Build explicitly sets `NEXT_PUBLIC_ENGAGEMENT_ENABLED=false`.
+
+Vercel production build/typecheck passed. Live Chrome checks at 390px/1400px passed: full long titles wrap, arrow coordinates remain unchanged, Previous/Next work, no page errors or horizontal overflow. Served bundles contain history-off copy and no `cold-start-1` code. No authenticated Spotify actions automated. No GitHub push in this release turn. Only this handoff changed locally.
+
+Milestone 4 testing remains local: generate a new set after expiry and verify Download My Data reports `cold-start-1`; current `framework-1` sets intentionally stay unchanged. Examine Wander artist variety, Digging's untouched/lightly explored ordering, honest sparse favorites, no overlap, stable reload, and uninterrupted playback. Do not clear personalization history just to force regeneration without considering the deletion; automated fixture tests already verify cold-start scenarios. Next: local Milestone 4 user review, then await release direction. Milestone 5 untouched. Last stable local application commit: `e717a78`; production application commit: `49d5102`.
