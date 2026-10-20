@@ -13,12 +13,17 @@ const origin = process.env.TEST_ORIGIN || 'http://127.0.0.1:3193';
       await page.goto(origin + '/?demo=1');
       const invitation = page.getByRole('region', { name: 'Tour invitation' });
       await invitation.waitFor();
+      const popup = page.getByRole('dialog');
+      assert.equal(await popup.evaluate(node => node.matches(':modal')), true, 'tour uses native modal focus containment');
+      const before = await page.locator('.cabinet-navigation').boundingBox();
       if (width === 390) await invitation.getByRole('button', { name: 'Skip', exact: true }).click();
       else {
         await invitation.getByRole('button', { name: 'Start tour', exact: true }).click();
         await page.getByRole('region', { name: 'Cabinet tutorial' }).waitFor();
         await page.getByRole('button', { name: 'Close tutorial', exact: true }).click();
       }
+      const after = await page.locator('.cabinet-navigation').boundingBox();
+      assert.equal(after.y, before.y, 'popup does not shift cabinet layout');
       await page.reload();
       await page.getByRole('button', { name: 'Try the demo', exact: true }).waitFor();
       assert.equal(await invitation.count(), 0, 'Start and Skip both persist across reloads');
@@ -36,6 +41,9 @@ const origin = process.env.TEST_ORIGIN || 'http://127.0.0.1:3193';
       await page.getByRole('link', { name: 'Library & settings', exact: true }).first().click();
       await page.getByRole('button', { name: 'How to use the cabinet', exact: true }).click();
       await page.getByRole('heading', { name: 'Choose a bin', exact: true }).waitFor();
+      await page.keyboard.press('Escape');
+      assert.equal(await page.getByRole('dialog').count(), 0, 'Escape dismisses tour');
+      await page.waitForFunction(() => document.activeElement?.textContent === 'How to use the cabinet');
       assert.deepEqual(providerCalls, []);
       assert.deepEqual(errors, []);
       await context.close();
