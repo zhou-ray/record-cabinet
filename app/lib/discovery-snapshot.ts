@@ -6,7 +6,7 @@ export const DISCOVERY_LIMIT = 20;
 export const DISCOVERY_TYPES = ["forgotten", "wander", "digging"] as const;
 export type DiscoveryType = typeof DISCOVERY_TYPES[number];
 export type DiscoverySnapshot = {
-  id: string; accountId: string; generatedAt: number; expiresAt: number; version: "framework-1";
+  id: string; accountId: string; generatedAt: number; expiresAt: number; version: "framework-1" | "cold-start-1";
   bins: { type: DiscoveryType; albumIds: string[] }[];
 };
 const validId = (value: unknown): value is string => typeof value === "string" && /^[a-zA-Z0-9_-]{1,100}$/.test(value);
@@ -15,7 +15,7 @@ const validId = (value: unknown): value is string => typeof value === "string" &
 export function checkedDiscoverySnapshot(value: unknown, accountId: string): DiscoverySnapshot {
   const row = value as DiscoverySnapshot | null;
   if (!/^[a-f0-9]{64}$/.test(accountId) || !row || row.accountId !== accountId || !validId(row.id)
-    || row.version !== "framework-1" || !Number.isSafeInteger(row.generatedAt) || row.generatedAt <= 0
+    || (row.version !== "framework-1" && row.version !== "cold-start-1") || !Number.isSafeInteger(row.generatedAt) || row.generatedAt <= 0
     || !Number.isSafeInteger(row.expiresAt) || row.expiresAt !== row.generatedAt + DISCOVERY_LIFETIME
     || !Array.isArray(row.bins) || row.bins.length !== DISCOVERY_TYPES.length) throw new Error("Invalid discovery snapshot.");
   const seen = new Set<string>();
@@ -39,7 +39,7 @@ export function discoveryIsCurrent(snapshot: DiscoverySnapshot, now: number) {
  */
 export function assignDiscoverySnapshot(input: {
   id: string; accountId: string; now: number; albums: readonly Album[]; membership: readonly SavedMembership[];
-  candidates: Partial<Record<DiscoveryType, readonly string[]>>;
+  candidates: Partial<Record<DiscoveryType, readonly string[]>>; version?: DiscoverySnapshot["version"];
 }): DiscoverySnapshot {
   const eligible = new Set(eligibleSavedAlbums(input.albums, input.membership, input.now).map(membershipAlbumId));
   const used = new Set<string>();
@@ -55,7 +55,7 @@ export function assignDiscoverySnapshot(input: {
     }
   }
   return checkedDiscoverySnapshot({ id: input.id, accountId: input.accountId, generatedAt: input.now,
-    expiresAt: input.now + DISCOVERY_LIFETIME, version: "framework-1", bins }, input.accountId);
+    expiresAt: input.now + DISCOVERY_LIFETIME, version: input.version ?? "framework-1", bins }, input.accountId);
 }
 
 /** A filtered view never refills or changes the persisted ordering. */

@@ -164,7 +164,7 @@ const sources = Object.fromEntries(['saved-membership', 'discovery-snapshot', 'e
       const saved = await repo.load();
       check(saved.discovery.id === results[0].id && saved.events.length === 0, 'snapshot persisted without synthetic history');
       check((await createEngagementStorage('e'.repeat(64)).load()).discovery === null, 'snapshot account isolation');
-      const replacement = {...snapshot, id: 'replacement', generatedAt: 1000 + ttl, expiresAt: 1000 + 2 * ttl};
+      const replacement = {...snapshot, version: 'cold-start-1', id: 'replacement', generatedAt: 1000 + ttl, expiresAt: 1000 + 2 * ttl};
       check((await writer.saveDiscovery(replacement, 1000 + ttl)).id === 'replacement', 'expiry permits replacement');
       check((await writer.saveDiscovery(snapshot, 1000)).id === 'replacement', 'late older generation cannot overwrite newer');
       window.discoveryWriter = writer;

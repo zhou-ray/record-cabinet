@@ -1375,3 +1375,12 @@ The baseline generator shuffles Wander candidates, uses records with no retained
 Persisted sets are stable for seven days. An explicit prepare can replace an expired set; neither opening bins nor periodic local reads regenerates it. Current eligibility filters the displayed set without refill. Reset/removal invalidates pending work and retires open discovery views while playback stays mounted. Read reconciliation runs locally on focus and every 15 seconds; no server polling added. Export/reset integration from the snapshot checkpoint is preserved. Only the latest snapshot is retained, device-locally.
 
 Milestone 3 is complete and tested locally; see discovery-progress.md for evidence and real-account testing limits. Stop before Milestone 4 and do not infer authorization to activate tracking or deploy.
+
+
+## Milestone 4 cold-start decision record (2026-10-19)
+
+New `cold-start-1` snapshots use randomized, primary-artist-balanced Wander sampling. Each pick prefers a less represented artist, with random ties; there is no hard cap that empties single-artist libraries. Provider artist IDs group primary credits, normalized names are the fallback, and unknown credits share a group. No new metadata requests are made.
+
+Reserve enough non-completed candidates for a useful Digging bin (up to 20, at most half the remaining collection); Wander cannot consume that whole pool. After Wander selection, Digging orders unassigned candidates by ascending play count then inspection count, leaving random ties. This gives untouched records priority over inspected-only records and lightly played records, without duration/recency weights or learned models. Favorites retain the conservative two-distinct-completions/30-days-absent rule. Only the 20 selected favorites are excluded elsewhere; overflow remains available to Wander. All bins stay saved-only, capped and disjoint.
+
+The snapshot validator supports both `framework-1` and `cold-start-1`. Current snapshots keep their saved identity and order; the new rules apply when an expired/reset set is explicitly prepared. Export/reset/storage semantics remain unchanged. History collection remains disabled by default; no later scoring or feedback milestone started. See discovery-progress.md for fixture and real-browser verification and limitations. Milestone 4 is complete locally; stop before Milestone 5.

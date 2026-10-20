@@ -2,9 +2,9 @@
 
 ## Current milestone
 
-Milestone 3 — Generated-bin Framework.
+Milestone 4 — Cold-start Heuristics.
 
-**Status: Milestone 3 complete, user-tested, pushed and deployed (2026-10-19).** Saved-membership reconciliation, persisted snapshots, baseline generation and all three native discovery bins are connected. Milestone 4 has not started. Tracking remains off by default.
+**Status: Milestone 4 complete locally (2026-10-19).** User authorized this milestone after approving the local arrow layout fix. Artist-balanced Wander, exploration tiers for Digging, and conservative Forgotten Favorites are implemented and verified. Milestone 5 has not started. Tracking remains off by default. Milestone 3 remains the production release.
 
 Set `NEXT_PUBLIC_ENGAGEMENT_ENABLED=true` **at build time** to exercise instrumentation. It is deliberately off in ordinary builds and `.env.example` pending provider-release review. The 2026-10-15 deployment includes these controls with collection explicitly disabled; see the latest deployment entry below.
 
@@ -102,17 +102,19 @@ The previous foundation remains in `app/lib/engagement.ts` and `tests/engagement
 
 ## Not yet implemented
 
-Milestones 1–3 are complete. Milestones 4–8 remain unimplemented: cold-start diversity tuning, weighted behavioral scoring, feedback controls, destination-picker improvements and evaluation metrics. Generated snapshots retain only the latest set, not historical archives.
+Milestones 1–4 are complete. Milestones 5–8 remain unimplemented: weighted behavioral scoring, feedback controls, destination-picker improvements and evaluation metrics. Generated snapshots retain only the latest set, not historical archives.
 
 ## Exact next step
 
-STOP before Milestone 4. The user tested the completed Discover flow locally and reported everything in order, then authorized GitHub push and production deployment. Live site: https://record-cabinet-livid.vercel.app. Next: a signed-in live-site check of Discover and playback; public desktop/mobile smoke passed. Start Milestone 4 only on explicit authorization. Keep history collection default-off.
+STOP before Milestone 5. Milestone 4 is ready for local review. Existing current seven-day snapshots deliberately retain their records/order and `framework-1` version; a newly prepared set after expiry or personalization reset uses `cold-start-1`. Do not reset personal history merely to inspect the change without considering deletion. Automated fixtures verify old-to-new transitions and diverse/sparse libraries without touching personal data.
+
+No push/deployment was requested for this milestone. The earlier arrow-position fix and this milestone are local only. Await user testing/release direction and explicit Milestone 5 authorization. Preserve default-off history collection. The discussed single-click auto-continuation of preparation remains an unimplemented usability follow-up, not part of these selection changes.
 
 ## Last known stable commit
 
-- Implemented and user-tested Milestone 3: `2f37231` (`feat: connect discovery bins to the record cabinet`), pushed to GitHub and deployed to production.
-- Production deployment: `dpl_6M2micyU4JLLLLnFERtSccNdx6Nf`, with `NEXT_PUBLIC_ENGAGEMENT_ENABLED=false` explicitly supplied at build time.
-- This documentation-only follow-up records release verification; no later milestone work.
+- Before Milestone 4: `49d5102` (`fix: keep browsing arrows above variable album titles`), local only and user-approved.
+- Milestone 4 completion is titled `feat: add discovery cold-start heuristics`; obtain its hash from git log after commit.
+- GitHub release handoff: `1e1772e`. Production application: `2f37231`, deployment `dpl_6M2micyU4JLLLLnFERtSccNdx6Nf`, with history collection explicitly disabled.
 
 ## Milestone 1 correction — browsing during playback (2026-10-08)
 
@@ -346,3 +348,20 @@ Files changed in this release follow-up: `docs/discovery-progress.md` only. Last
 ## Independent browsing layout fix (2026-10-19)
 
 Moved Previous/Next album controls directly beneath the bin, before variable-height album titles and status text. Full titles still wrap, but no longer push the arrows down. Changed `app/record-bin.tsx`; no discovery generation, playback or Milestone 4 changes. Lint, production build/typecheck and diff check passed. Local Chrome measurements at 390px/1400px confirmed long titles wrap onto additional lines with unchanged arrow positions, no horizontal overflow and working Previous/Next navigation. Local only; production remains Milestone 3 release `2f37231`. Last stable commit before this fix: `1e1772e`. Next: user verification of the local layout; no new push/deployment authorized in this turn.
+
+
+## Milestone 4 completion — cold-start selection (2026-10-19)
+
+Completed:
+- Wander samples randomized eligible saved-album candidates while preferring the least represented primary artist at each pick. Primary Spotify artist IDs identify groups; normalized primary/display names provide a fallback, and missing credits share an unknown group. It spreads picks across artists where available and still fills single-artist collections without an arbitrary hard cap. Random ordering breaks ties; no provider metadata requests added.
+- Digging prefers no recorded interactions, then inspected-only albums, then fewer recorded plays (inspection counts break ties). Completed records do not fill Digging solely to hit a quota. These are simple ordinal exploration tiers, not weighted behavioral scoring. Randomized ordering breaks equal-history ties. Wander leaves enough eligible records for Digging: reserve up to 20, at most half the non-favorite pool, while keeping artist diversity choices available. The remaining least-explored candidates fill Digging. Zero overlap remains enforced by shared assignment.
+- Forgotten Favorites still requires two distinct retained completion sessions and 30 days without retained interaction. Duplicate events, foreign accounts, nonpositive/future timestamps cannot add evidence. Cap favorites at 20 before excluding selected IDs from other pools so excess qualifying records remain available to Wander. Insufficient history produces an honest empty bin.
+- New snapshots use `cold-start-1`; the durable validator continues accepting `framework-1`. Current sets are not regenerated, reordered or migrated on reload. Expiry followed by explicit preparation creates the new version. Both versions remain compatible with export/reset and generation-fenced persistence. No schema change, new UI controls or collection activation.
+
+Files changed: `app/lib/discovery-generator.ts`, `app/lib/discovery-snapshot.ts`, `tests/discovery-cold-start.test.mjs` (new), `scripts/discovery-integration-smoke.cjs`, `scripts/engagement-storage-smoke.cjs`, and both discovery documents.
+
+Checks: 257 Node tests PASS; lint PASS with no warnings; production webpack build/typecheck PASS; diff check PASS. Cold-start fixtures cover a 100-record dominant artist plus 19 other artists over 20 random seeds, seed variation, saved-only filtering, zero overlap, 20 caps, empty/tiny/single-artist libraries, unplayed-pool reservation, interaction-tier ordering, sparse/recent/duplicate/foreign history, favorites overflow, shared collaborators, missing artist data and legacy snapshot validity. Real Chrome integration at 390px/1400px PASS: ten available artists yield two Wander records each, current legacy snapshots retain identity/order across reload, expired sets regenerate as `cold-start-1`, and previous preparation/cancel/cooldown/locks/browsing/playing/removal/reset checks still pass. Real IndexedDB smoke PASS for both snapshot versions including expiry replacement, stale writes, cross-tab reset, rollback and account isolation. No personal data or live Spotify calls used.
+
+Known limits: history is retained device-local evidence, not complete Spotify listening history; with collection off, only previously retained events inform selection. Artist diversity uses primary credits and is limited by metadata quality and the finite eligible pool. Digging prioritizes records left after Wander's diversity selection, so artist spread can place an untouched record in Wander instead. Small collections produce smaller bins; a one-record collection puts it in Wander to avoid duplication. The 30-day/two-completion favorites rule is unchanged, not tuned with learned or weighted scores. There is no recency weighting, listening-duration scoring, personal-bin inference, feedback learning or evaluation dashboard (later milestones). Existing sets remain stable until expiry/reset. Preparation still uses explicit bounded continuation.
+
+Exact next step: stop at completed Milestone 4. User review and authorized release are next; do not begin Milestone 5 without instruction. Last stable commit before this milestone: `49d5102`. No push/deployment in this session.

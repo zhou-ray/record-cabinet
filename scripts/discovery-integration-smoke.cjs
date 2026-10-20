@@ -55,7 +55,7 @@ function cookie() {
   await page.evaluate(async account=>{
    const db=await new Promise(resolve=>{const r=indexedDB.open(`record-cabinet-library:${account}`,1);r.onsuccess=()=>resolve(r.result);});
    await new Promise((resolve,reject)=>{const tx=db.transaction('albums','readwrite');
-    for(let i=0;i<125;i++) tx.objectStore('albums').put({id:`spotify:a${i}`,source:'spotify',title:`Record ${String(i).padStart(3,'0')}`,artist:'Test Artist',artists:[{id:'artist',name:'Test Artist'}],year:'2026',genre:'Jazz',genres:['Jazz'],genresEdited:true,color:'moss',note:'',catalogNumber:'',artworkUrl:null,externalUrl:null,playback:{kind:'spotify',uri:`spotify:album:a${i}`},availabilityCheckedAt:Date.now(),tracks:[{id:`spotify:t${i}`,title:'Track',duration:100,disc:1,number:1}]});
+    for(let i=0;i<125;i++) tx.objectStore('albums').put({id:`spotify:a${i}`,source:'spotify',title:`Record ${String(i).padStart(3,'0')}`,artist:`Artist ${i%10}`,artists:[{id:`artist${i%10}`,name:`Artist ${i%10}`}],year:'2026',genre:'Jazz',genres:['Jazz'],genresEdited:true,color:'moss',note:'',catalogNumber:'',artworkUrl:null,externalUrl:null,playback:{kind:'spotify',uri:`spotify:album:a${i}`},availabilityCheckedAt:Date.now(),tracks:[{id:`spotify:t${i}`,title:'Track',duration:100,disc:1,number:1}]});
     tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
    });db.close();
   },account);
@@ -74,6 +74,16 @@ function cookie() {
   },account);
   const first=await read();
   assert.deepEqual(first.snapshot.bins.map(b=>b.albumIds.length),[0,20,20]);
+  assert.equal(first.snapshot.version,'cold-start-1');
+  const artistCounts=new Map();
+  for(const id of first.snapshot.bins[1].albumIds){const artist=Number(id.slice('spotify:a'.length))%10;artistCounts.set(artist,(artistCounts.get(artist)||0)+1);}
+  assert.equal(artistCounts.size,10);assert.ok([...artistCounts.values()].every(count=>count===2));
+  // A current pre-M4 snapshot must survive deployment without reshuffling.
+  first.snapshot.version='framework-1';
+  await page.evaluate(async ({account,first})=>{
+   const db=await new Promise(resolve=>{const r=indexedDB.open(`record-cabinet-engagement:${account}`);r.onsuccess=()=>resolve(r.result);});
+   await new Promise(resolve=>{const tx=db.transaction('metadata','readwrite');tx.objectStore('metadata').put(first,'discovery-snapshot');tx.oncomplete=resolve;});db.close();
+  },{account,first});
   assert.equal(new Set(first.snapshot.bins.flatMap(b=>b.albumIds)).size,40);
   assert.ok(!first.snapshot.bins.flatMap(b=>b.albumIds).includes('spotify:a0'));
   await page.screenshot({path:`/private/tmp/rc-discovery-${width}.png`,fullPage:true});
@@ -125,6 +135,7 @@ function cookie() {
   await page.getByRole('button',{name:'Continue preparing bins',exact:true}).click();
   await page.getByRole('button',{name:'Check saved albums',exact:true}).waitFor();
   assert.notEqual((await read()).snapshot.id,first.snapshot.id,'expired snapshot regenerated');
+  assert.equal((await read()).snapshot.version,'cold-start-1','expired old set upgrades on preparation');
   await page.getByRole('button',{name:'Open Wander, 20 records',exact:true}).click();
   await page.locator('[class*=touchSurface]').click();
   await page.waitForFunction(()=>!document.querySelector('button[title="Play this album"]').disabled);
