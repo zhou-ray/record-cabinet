@@ -9,38 +9,52 @@ export default function GuidedTour({ onClose }: { onClose: () => void }) {
   const firstIndex = useRef("");
   useEffect(() => {
     let target: Element | null = null;
+    let pendingStep = -1, pendingSince = 0, targetSince = 0, revealed = false;
+    let frame = 0;
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    function advance(next: number) {
+      if (pendingStep !== next) { pendingStep = next; pendingSince = performance.now(); }
+      if (performance.now() - pendingSince >= (reduced ? 100 : 500)) setStep(next);
+    }
     function update() {
       const cabinet = document.querySelector<HTMLElement>('[data-tour-bin]');
       if (!cabinet || cabinet.closest('[hidden]')) { setBox(null); return; }
       const data = cabinet.dataset;
-      if (step < 4 && step > 0 && !data.tourBin) { setStep(0); return; }
-      if (step === 0 && data.tourBin) { firstIndex.current = data.tourIndex ?? ""; setStep(1); return; }
-      if (step === 1 && cabinet.querySelector('[data-tour-target="browse"]:disabled')) { setStep(2); return; }
-      if (step === 1 && data.tourFlipped === "true") { setStep(3); return; }
-      if (step === 3 && data.tourFlipped !== "true" && data.tourPlaying !== "true") { setStep(2); return; }
-      if (step === 1 && data.tourIndex !== firstIndex.current) { setStep(2); return; }
-      if (step === 2 && data.tourFlipped === "true") { setStep(3); return; }
-      if (step === 3 && data.tourPlaying === "true") { setStep(4); return; }
+      if (step < 4 && step > 0 && !data.tourBin) { advance(0); return; }
+      if (step === 0 && data.tourBin) { firstIndex.current = data.tourIndex ?? ""; advance(1); return; }
+      if (step === 1 && cabinet.querySelector('[data-tour-target="browse"]:disabled')) { advance(2); return; }
+      if (step === 1 && data.tourFlipped === "true") { advance(3); return; }
+      if (step === 3 && data.tourFlipped !== "true" && data.tourPlaying !== "true") { advance(2); return; }
+      if (step === 1 && data.tourIndex !== firstIndex.current) { advance(2); return; }
+      if (step === 2 && data.tourFlipped === "true") { advance(3); return; }
+      if (step === 3 && data.tourPlaying === "true") { advance(4); return; }
+      pendingStep = -1;
       const next = step < 5 ? cabinet.querySelector(selectors[step]) ?? (step === 0 ? cabinet.querySelector('[data-tour-target="all"]') : null) : null;
-      if (next !== target) { target = next; target?.scrollIntoView({ block: "center", behavior: "instant" }); if (target instanceof HTMLElement || target instanceof SVGElement) target.focus({ preventScroll: true }); }
+      if (next !== target) { target = next; targetSince = performance.now(); revealed = false; }
       if (!target) { setBox(null); return; }
       const rect = target.getBoundingClientRect();
-      setBox({ left: rect.left - 6, top: rect.top - 6, width: rect.width + 12, height: rect.height + 12 });
+      if (!revealed && performance.now() - targetSince > (reduced ? 0 : 250)) {
+        revealed = true;
+        // Leave room for the fixed hint, and avoid moving a target already in reach.
+        if (rect.top < 48 || rect.bottom > innerHeight - 165) target.scrollIntoView({ block: "center", behavior: reduced ? "instant" : "smooth" });
+        if (document.activeElement?.matches(":focus-visible") && (target instanceof HTMLElement || target instanceof SVGElement)) target.focus({ preventScroll: true });
+      }
+      const nextBox = { left: Math.round(rect.left - 6), top: Math.round(rect.top - 6), width: Math.round(rect.width + 12), height: Math.round(rect.height + 12) };
+      setBox(previous => previous && Object.keys(nextBox).every(key => previous[key as keyof typeof nextBox] === nextBox[key as keyof typeof nextBox]) ? previous : nextBox);
     }
-    update();
-    const timer = setInterval(update, 120);
+    function tick() { update(); frame = requestAnimationFrame(tick); }
+    frame = requestAnimationFrame(tick);
     const seek = () => { if (step === 4) setStep(5); };
     const escape = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
     window.addEventListener("record-cabinet-demo-seek", seek);
     window.addEventListener("keydown", escape);
-    return () => { clearInterval(timer); window.removeEventListener("record-cabinet-demo-seek", seek); window.removeEventListener("keydown", escape); };
+    return () => { cancelAnimationFrame(frame); window.removeEventListener("record-cabinet-demo-seek", seek); window.removeEventListener("keydown", escape); };
   }, [step, onClose]);
-  const below = box && box.top < 180;
   return <>
     {box && <div className={styles.spotlight} style={box} aria-hidden="true"><span className={styles.arrow}>↓</span></div>}
-    <aside className={styles.hint} aria-label="Cabinet tutorial" style={box ? { top: below ? Math.min(box.top + box.height + 14, window.innerHeight - 155) : Math.max(12, box.top - 130) } : { bottom: 20 }}>
+    <aside className={styles.hint} aria-label="Cabinet tutorial">
       <span>DEMO TOUR · {Math.min(step + 1, 5)} / 5</span>
-      <p aria-live="polite">{hints[step]}</p>
+      <p key={step} className={styles.hintText} aria-live="polite">{hints[step]}</p>
       {step === 1 && <small>Swipe down or use the arrows.</small>}
       {step === 4 && <small>Drag, or focus the arm and use arrow keys.</small>}
       {step === 5 && <small>Keep exploring. Your own library is unchanged.</small>}
