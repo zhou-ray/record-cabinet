@@ -31,6 +31,15 @@ function subscribeDigging(update: () => void) {
   return () => { window.removeEventListener("storage", update); window.removeEventListener("record-cabinet-digging", update); };
 }
 
+function ShelfBinPreview({ bin, positionKey }: { bin: Bin; positionKey: string }) {
+  const albumId = useSyncExternalStore(subscribeDigging, () => {
+    try { return localStorage.getItem(positionKey); } catch { return null; }
+  }, () => null);
+  const start = rememberedAlbumIndex(bin.albums, albumId);
+  const records = Array.from({ length: Math.min(3, bin.albums.length) }, (_, offset) => bin.albums[(start + offset) % bin.albums.length]);
+  return <span className={styles.miniBin} aria-hidden="true"><span className={styles.miniBinBack} />{records.reverse().map((record, i, items) => <span key={record.id} data-album-id={record.id} className={`${styles.shelfSleeve} ${styles[record.color]}`} style={{ bottom: 39 + (items.length - 1 - i) * 12, transform: `rotate(${(items.length - 1 - i) * -3}deg)` }}>{record.artworkUrl ? <Image src={record.artworkUrl} alt="" fill unoptimized sizes="200px" className={styles.spotifyArtwork} /> : <><span>{record.title}</span><i>◉</i></>}</span>)}<span className={styles.miniBinFront}><span>{bin.label}</span></span></span>;
+}
+
 const formatDuration = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
 
 function Sleeve({ album, index, position, stackPosition, returning, reduced, pulled, raised, flipped, onFlip, onLiftComplete, onFlipComplete }: { album: Album; index: number; position: MotionValue<number>; stackPosition: MotionValue<number>; returning: boolean; reduced: boolean; pulled: boolean; raised: boolean; flipped: boolean; onLiftComplete: () => void; onFlip: () => void; onFlipComplete: () => void }) {
@@ -170,10 +179,12 @@ export default function RecordBin({ collection, genreEditing, onGenreUpdate }: {
   }
   useEffect(() => {
     const current = activeBin?.albums[index];
-    if (!current || activeBin?.id.startsWith("discovery:") || flipPhase !== "idle") return;
+    if (!current || flipPhase !== "idle") return;
     const binKey = binPositionKey(activeBin!.id, arrangement, systemId, genreBinCount);
     remembered.current[binKey] = current.id;
-    try { localStorage.setItem(`${diggingKey}:bin:${binKey}`, current.id); } catch { /* Retain the position for this visit. */ }
+    try { localStorage.setItem(`${diggingKey}:bin:${binKey}`, current.id); window.dispatchEvent(new Event("record-cabinet-digging")); } catch { /* Retain the position for this visit. */ }
+    // Discover remembers its own place without replacing Continue digging in the library.
+    if (activeBin?.id.startsWith("discovery:")) return;
     const saved: DiggingPosition = { albumId: current.id, binId: activeBin!.id, arrangement, systemId, genreBinCount, opened: pulled, flipped };
     try { localStorage.setItem(diggingKey, JSON.stringify(saved)); window.dispatchEvent(new Event("record-cabinet-digging")); }
     catch { /* Browsing remains available if local persistence is blocked. */ }
@@ -510,7 +521,7 @@ export default function RecordBin({ collection, genreEditing, onGenreUpdate }: {
         {collection.length === 0 && <p className={styles.armHelp}>Your shelf is empty. Saved albums will appear here.</p>}
         <div className={styles.shelfGrid}>
           {bins.map((bin) => <button key={bin.id} ref={(node) => { if (node) binButtons.current.set(bin.id, node); else binButtons.current.delete(bin.id); }} className={styles.shelfBin} disabled={!bin.albums.length} onClick={() => openBin(bin)} aria-label={`Open ${bin.label}, ${bin.albums.length} ${bin.albums.length === 1 ? "record" : "records"}`}>
-            <span className={styles.miniBin} aria-hidden="true"><span className={styles.miniBinBack} />{bin.albums.slice(0, 3).reverse().map((record, i, items) => <span key={record.id} className={`${styles.shelfSleeve} ${styles[record.color]}`} style={{ bottom: 39 + (items.length - 1 - i) * 12, transform: `rotate(${(items.length - 1 - i) * -3}deg)` }}>{record.artworkUrl ? <Image src={record.artworkUrl} alt="" fill unoptimized sizes="200px" className={styles.spotifyArtwork} /> : <><span>{record.title}</span><i>◉</i></>}</span>)}<span className={styles.miniBinFront}><span>{bin.label}</span></span></span>
+            <ShelfBinPreview bin={bin} positionKey={`${diggingKey}:bin:${binPositionKey(bin.id, arrangement, systemId, genreBinCount)}`} />
             {discoveryView && "blurb" in bin && <span className={styles.discoveryBlurb}>{String(bin.blurb)}{!bin.albums.length && "empty" in bin && <span>{String(bin.empty)}</span>}</span>}
           </button>)}
         </div>

@@ -36,7 +36,7 @@ export function binDividers(albums: Album[], byArtist: boolean): BinDivider[] {
   return sections;
 }
 export function binPositionKey(binId: string, arrangement: Arrangement, systemId: string, genreBinCount: number) {
-  return JSON.stringify(["all", "recent"].includes(binId) ? [binId] : [arrangement, arrangement === "custom" ? systemId : "", arrangement === "genre" ? genreBinCount : 0, binId]);
+  return JSON.stringify((["all", "recent"].includes(binId) || binId.startsWith("discovery:")) ? [binId] : [arrangement, arrangement === "custom" ? systemId : "", arrangement === "genre" ? genreBinCount : 0, binId]);
 }
 export function rememberedAlbumIndex(albums: Album[], albumId: string | null | undefined) {
   return Math.max(0, albums.findIndex(album => album.id === albumId));
