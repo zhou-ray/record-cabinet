@@ -67,6 +67,7 @@ export default function LibraryScreen({ connected, demo, legacySession = false }
   const [batchSize, setBatchSize] = useState(100);
   const importBatch = useRef(100);
   const freshImport = useRef(false);
+  const beforeTourDemo = useRef(false);
   const [tourSession, setTourSession] = useState(0);
   const [showDemo, setShowDemo] = useState(() => params.get("demo") === "1");
   const running = useRef(false);
@@ -287,7 +288,11 @@ export default function LibraryScreen({ connected, demo, legacySession = false }
     <nav className="cabinet-navigation" aria-label="Cabinet navigation">{settings ? <CabinetLink href="/">← Back to records</CabinetLink> : <CabinetLink href="/settings">Library & settings</CabinetLink>}</nav>
     {settings && <header className="settings-heading"><h1>Library & settings</h1><p>Add records, organize your library, and manage your account.</p></header>}
     {!settings && !connected && storageReady && !albums?.some(album => album.source !== "mock") && <FirstVisit onDemo={() => setShowDemo(true)} />}
-    <ListeningGuide settings={settings} onStart={() => { setShowDemo(true); setTourSession(value => value + 1); window.history.pushState(null, "", "/?demo=1"); }} />
+    <ListeningGuide settings={settings} onStart={() => { beforeTourDemo.current = showDemo; setShowDemo(true); setTourSession(value => value + 1); window.history.pushState(null, "", "/?demo=1"); }} onExit={() => {
+      const returnToDemo = !albums?.some(album => album.source !== "mock") && beforeTourDemo.current;
+      setShowDemo(returnToDemo);
+      window.history.replaceState(null, "", returnToDemo ? "/?demo=1" : "/");
+    }} />
     {mobileSetup && <section className="library-message" role="alert"><h2>Spotify connection unavailable</h2><p>This address supports browsing, but Spotify sign-in needs Record Cabinet’s secure address restored.</p><p>Your saved records are still available.</p></section>}
     <div hidden={settings}>
     {(albums || showDemo) && <RecordBin key={showDemo ? `demo:${tourSession}` : "collection"} collection={showDemo ? demoCollection : albums!} genreEditing={!showDemo && !!albums?.some(album => album.source !== "mock") && storageReady && !saving && (progress.complete || !!error)} onGenreUpdate={updates => { const next = mergeAlbums(latestAlbums.current ?? [], updates); latestAlbums.current = next; setAlbums(next); }} />}

@@ -57,7 +57,7 @@ export default function GuidedTour({ onClose }: { onClose: () => void }) {
       <p key={step} className={styles.hintText} aria-live="polite">{hints[step]}</p>
       {step === 1 && <small>Swipe down or use the arrows.</small>}
       {step === 4 && <small>Drag, or focus the arm and use arrow keys.</small>}
-      {step === 5 && <small>Keep exploring. Your own library is unchanged.</small>}
+      {step === 5 && <small>Finish to return to your records.</small>}
       <button onClick={onClose}>{step === 5 ? "Finish tour" : "Skip tour"}</button>
     </aside>
   </>;

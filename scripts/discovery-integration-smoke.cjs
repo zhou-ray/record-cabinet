@@ -61,6 +61,17 @@ function cookie() {
   },account);
   await page.reload();
   await page.getByRole('button',{name:'Skip',exact:true}).click();
+  for (const exit of ['skip', 'escape']) {
+    await page.getByRole('button',{name:'How to use the cabinet',exact:true}).click();
+    await page.getByText('Open a demo bin',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'Open All records, 60 records',exact:true}).waitFor();
+    if(exit==='skip') await page.getByRole('button',{name:'Skip tour',exact:true}).click();
+    else await page.keyboard.press('Escape');
+    await page.getByRole('button',{name:'Open All records, 125 records',exact:true}).waitFor();
+    assert.equal(new URL(page.url()).searchParams.has('demo'),false,'tour removes demo URL on exit');
+    await page.getByRole('link',{name:'Library & settings',exact:true}).first().click();
+  }
+
   await page.getByRole('link',{name:'← Back to records',exact:true}).click();
   await page.getByRole('button',{name:'Discover',exact:true}).click();
   assert.equal(requests,0,'no checks on mount or navigation');

@@ -38,12 +38,12 @@ function rememberChoice() {
   window.dispatchEvent(new Event("record-cabinet-tour"));
 }
 
-export default function ListeningGuide({ settings, onStart }: { settings: boolean; onStart: () => void }) {
+export default function ListeningGuide({ settings, onStart, onExit }: { settings: boolean; onStart: () => void; onExit: () => void }) {
   const replay = useRef<HTMLButtonElement>(null);
   const hasAnswered = useSyncExternalStore(subscribe, answered, () => true);
   const [visible, setVisible] = useState(false);
   function start() { rememberChoice(); onStart(); setVisible(true); }
-  function close() { setVisible(false); requestAnimationFrame(() => replay.current?.focus({ preventScroll: true })); }
+  function close() { setVisible(false); onExit(); requestAnimationFrame(() => replay.current?.focus({ preventScroll: true })); }
   if (!visible && !hasAnswered) return <TourPopup label="Welcome to Record Cabinet" onDismiss={rememberChoice}><section className="first-visit listening-guide" aria-label="Tour invitation">
     <h2>Welcome—take a quick tour?</h2><p>Try a few demo records. No login or import needed.</p>
     <div className="collection-actions"><button onClick={start}>Start tour</button><button onClick={rememberChoice}>Skip</button></div>
