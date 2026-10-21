@@ -45,7 +45,7 @@ export default function ListeningGuide({ settings, onStart, onExit }: { settings
   function start() { rememberChoice(); onStart(); setVisible(true); }
   function close() { setVisible(false); onExit(); requestAnimationFrame(() => replay.current?.focus({ preventScroll: true })); }
   if (!visible && !hasAnswered) return <TourPopup label="Welcome to Record Cabinet" onDismiss={rememberChoice}><section className="first-visit listening-guide" aria-label="Tour invitation">
-    <h2>Welcome—take a quick tour?</h2><p>Try a few demo records. No login or import needed.</p>
+    <h2>Welcome—take a quick tour?</h2><p>Explore your records—or try demo albums if your library is empty.</p>
     <div className="collection-actions"><button onClick={start}>Start tour</button><button onClick={rememberChoice}>Skip</button></div>
     <p>You can always find the tour in Library &amp; settings.</p>
   </section></TourPopup>;

@@ -40,7 +40,7 @@ const origin = process.env.TEST_ORIGIN || 'http://127.0.0.1:3193';
       await page.getByRole('button', { name: 'Open All records, 60 records', exact: true }).waitFor();
       await page.getByRole('link', { name: 'Library & settings', exact: true }).first().click();
       await page.getByRole('button', { name: 'How to use the cabinet', exact: true }).click();
-      await page.getByText('Open a demo bin', { exact: true }).waitFor();
+      await page.getByText('Open a bin', { exact: true }).waitFor();
       await page.keyboard.press('Escape');
       assert.equal(await page.getByRole('dialog').count(), 0, 'Escape dismisses tour');
       assert.equal(await page.getByRole('complementary', { name: 'Cabinet tutorial' }).count(), 0);

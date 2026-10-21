@@ -63,8 +63,8 @@ function cookie() {
   await page.getByRole('button',{name:'Skip',exact:true}).click();
   for (const exit of ['skip', 'escape']) {
     await page.getByRole('button',{name:'How to use the cabinet',exact:true}).click();
-    await page.getByText('Open a demo bin',{exact:true}).waitFor();
-    await page.getByRole('button',{name:'Open All records, 60 records',exact:true}).waitFor();
+    await page.getByText('Open a bin',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'Open All records, 125 records',exact:true}).waitFor();
     if(exit==='skip') await page.getByRole('button',{name:'Skip tour',exact:true}).click();
     else await page.keyboard.press('Escape');
     await page.getByRole('button',{name:'Open All records, 125 records',exact:true}).waitFor();

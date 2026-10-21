@@ -288,7 +288,7 @@ export default function LibraryScreen({ connected, demo, legacySession = false }
     <nav className="cabinet-navigation" aria-label="Cabinet navigation">{settings ? <CabinetLink href="/">← Back to records</CabinetLink> : <CabinetLink href="/settings">Library & settings</CabinetLink>}</nav>
     {settings && <header className="settings-heading"><h1>Library & settings</h1><p>Add records, organize your library, and manage your account.</p></header>}
     {!settings && !connected && storageReady && !albums?.some(album => album.source !== "mock") && <FirstVisit onDemo={() => setShowDemo(true)} />}
-    <ListeningGuide settings={settings} onStart={() => { beforeTourDemo.current = showDemo; setShowDemo(true); setTourSession(value => value + 1); window.history.pushState(null, "", "/?demo=1"); }} onExit={() => {
+    <ListeningGuide settings={settings} onStart={() => { beforeTourDemo.current = showDemo; const useDemo = !albums?.some(album => album.source !== "mock"); setShowDemo(useDemo); if (useDemo) setTourSession(value => value + 1); window.history.pushState(null, "", useDemo ? "/?demo=1" : "/"); }} onExit={() => {
       const returnToDemo = !albums?.some(album => album.source !== "mock") && beforeTourDemo.current;
       setShowDemo(returnToDemo);
       window.history.replaceState(null, "", returnToDemo ? "/?demo=1" : "/");

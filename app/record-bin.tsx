@@ -482,7 +482,7 @@ export default function RecordBin({ collection, genreEditing, onGenreUpdate }: {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   }
 
-  return <main data-tour-bin={activeBin?.id ?? ""} data-tour-index={index} data-tour-flipped={flipped && flipPhase === "idle"} data-tour-playing={preferLocal && player.playing} className={`${styles.page} ${styles.integratedCabinet}`}>
+  return <main data-tour-bin={activeBin?.id ?? ""} data-tour-index={index} data-tour-flipped={flipped && flipPhase === "idle"} data-tour-playing={preferLocal ? player.playing && player.album?.id === album?.id : spotifyPlayer.state?.playing && spotifyPlayer.album?.id === album?.id} className={`${styles.page} ${styles.integratedCabinet}`}>
     <header className={styles.header}><button onClick={backToShelf} aria-label="Record Cabinet shelf" className={styles.brand}><span className={styles.logo} aria-hidden="true">◉</span> record cabinet<span className={styles.brandDot}>®</span></button><span className={styles.edition}>A LITTLE OFFLINE FEELING.</span></header>
     <div className={`${styles.cabinetLayout} ${!hasRecord ? styles.browsingOnly : ""}`}><div className={styles.cabinetBrowser}>
     {!activeBin ? <>

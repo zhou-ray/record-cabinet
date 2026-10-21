@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import styles from "./listening-guide.module.css";
 const selectors = ['[data-tour-target="bin"]:not(:disabled)', '[data-tour-target="browse"]', '[data-tour-target="sleeve"]', '[data-tour-target="vinyl"]', '[aria-label="Tonearm position"]'];
-const hints = ["Open a demo bin", "Dig to the next record", "Tap the sleeve to flip it", "Tap the vinyl to play", "Move the arm to explore", "You’re ready to dig"];
+const hints = ["Open a bin", "Dig to the next record", "Tap the sleeve to flip it", "Tap the vinyl to play", "Move the arm to explore", "You’re ready to dig"];
 export default function GuidedTour({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState(0);
   const [box, setBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
@@ -46,14 +46,14 @@ export default function GuidedTour({ onClose }: { onClose: () => void }) {
     frame = requestAnimationFrame(tick);
     const seek = () => { if (step === 4) setStep(5); };
     const escape = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
-    window.addEventListener("record-cabinet-demo-seek", seek);
+    window.addEventListener("record-cabinet-tour-seek", seek);
     window.addEventListener("keydown", escape);
-    return () => { cancelAnimationFrame(frame); window.removeEventListener("record-cabinet-demo-seek", seek); window.removeEventListener("keydown", escape); };
+    return () => { cancelAnimationFrame(frame); window.removeEventListener("record-cabinet-tour-seek", seek); window.removeEventListener("keydown", escape); };
   }, [step, onClose]);
   return <>
     {box && <div className={styles.spotlight} style={box} aria-hidden="true"><span className={styles.arrow}>↓</span></div>}
     <aside className={styles.hint} aria-label="Cabinet tutorial">
-      <span>DEMO TOUR · {Math.min(step + 1, 5)} / 5</span>
+      <span>CABINET TOUR · {Math.min(step + 1, 5)} / 5</span>
       <p key={step} className={styles.hintText} aria-live="polite">{hints[step]}</p>
       {step === 1 && <small>Swipe down or use the arrows.</small>}
       {step === 4 && <small>Drag, or focus the arm and use arrow keys.</small>}

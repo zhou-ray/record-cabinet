@@ -11,7 +11,7 @@ const assert = require('node:assert/strict');
   await page.goto(process.env.TEST_ORIGIN || 'http://127.0.0.1:3194');
   await page.getByRole('button',{name:'Start tour',exact:true}).click();
   const hint = page.getByRole('complementary',{name:'Cabinet tutorial'});
-  await hint.getByText('Open a demo bin',{exact:true}).waitFor();
+  await hint.getByText('Open a bin',{exact:true}).waitFor();
   await page.locator('[data-tour-target="bin"]:not(:disabled)').first().click();
   await hint.getByText('Dig to the next record',{exact:true}).waitFor();
   await page.getByRole('button',{name:'Next album',exact:true}).click();
