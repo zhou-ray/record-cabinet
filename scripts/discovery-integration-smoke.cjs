@@ -59,6 +59,7 @@ function cookie() {
     tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
    });db.close();
   },account);
+  await page.evaluate(account => localStorage.setItem(`record-cabinet-systems:${account}`, JSON.stringify({arrangement:'artist',systemId:'mine',systems:[{id:'mine',name:'My records',bins:[{id:'shelf',label:'My shelf'}],assignments:{'spotify:a124':'shelf'}}]})), account);
   await page.reload();
   await page.getByRole('button',{name:'Skip',exact:true}).click();
   for (const exit of ['skip', 'escape']) {
@@ -84,7 +85,8 @@ function cookie() {
   },account);
   const first=await read();
   assert.deepEqual(first.snapshot.bins.map(b=>b.albumIds.length),[0,20,20]);
-  assert.equal(first.snapshot.version,'cold-start-1');
+  assert.equal(first.snapshot.version,'behavioral-1');
+  assert.equal(first.snapshot.bins[1].albumIds[0],'spotify:a124','personal-bin membership is passed through to generation');
   const artistCounts=new Map();
   for(const id of first.snapshot.bins[1].albumIds){const artist=Number(id.slice('spotify:a'.length))%10;artistCounts.set(artist,(artistCounts.get(artist)||0)+1);}
   assert.equal(artistCounts.size,10);assert.ok([...artistCounts.values()].every(count=>count===2));
@@ -149,7 +151,7 @@ function cookie() {
   mode='ok';await page.getByRole('button',{name:'Prepare discovery bins',exact:true}).click();
   await page.getByRole('button',{name:'Check saved albums',exact:true}).waitFor();
   assert.notEqual((await read()).snapshot.id,first.snapshot.id,'expired snapshot regenerated');
-  assert.equal((await read()).snapshot.version,'cold-start-1','expired old set upgrades on preparation');
+  assert.equal((await read()).snapshot.version,'behavioral-1','expired old set upgrades on preparation');
   await page.getByRole('button',{name:'Open Wander, 20 records',exact:true}).click();
   await page.locator('[class*=touchSurface]').click();
   await page.waitForFunction(()=>!document.querySelector('button[title="Play this album"]').disabled);

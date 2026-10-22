@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Album } from "./data/types";
+import { readOrganization } from "./lib/collection-backup";
 import { useAccount } from "./account-context";
 import { useMembershipRefresh } from "./use-membership-refresh";
 import { createEngagementStorage } from "./lib/engagement-storage";
@@ -10,7 +11,7 @@ import { DISCOVERY_COPY, generateDiscovery } from "./lib/discovery-generator";
 import { membershipAlbumId, nextMembershipBatch, type SavedMembership } from "./lib/saved-membership";
 
 export function useDiscovery(collection: Album[]) {
-  const { accountId, storage } = useAccount();
+  const { accountId, storage, organizationKey } = useAccount();
   const refresh = useMembershipRefresh();
   const enabled = /^[a-f0-9]{64}$/.test(accountId) && !collection.some(a => a.source === "mock");
   const [snapshot, setSnapshot] = useState<DiscoverySnapshot | null>(null);
@@ -60,8 +61,11 @@ export function useDiscovery(collection: Album[]) {
       if (nextMembershipBatch(library.albums, records, Date.now()).length) return;
       if (!library.albums.some(a => membershipAlbumId(a))) { setMessage("Import Spotify albums to prepare these bins."); return; }
       if (history.generation !== writer.generation) return;
+      let systems: ReturnType<typeof readOrganization>["systems"] = [];
+      try { systems = readOrganization(organizationKey).systems; } catch { /* Organization is optional. */ }
       const result = history.discovery && discoveryIsCurrent(history.discovery, Date.now()) ? history.discovery : await writer.saveDiscovery(generateDiscovery({
-        id: crypto.randomUUID(), accountId, now: Date.now(), albums: library.albums, membership: records, events: history.events,
+        id: crypto.randomUUID(), accountId, now: Date.now(), albums: library.albums, membership: records, events: history.events, sessions: history.sessions, systems, behavioral: true,
+        inspect: process.env.NODE_ENV === "development" ? scores => console.debug("Discovery scoring (local)", scores) : undefined,
       }), Date.now());
       if (ticket !== epoch.current) return;
       setSnapshot(result); setMessage("Your bins are ready. Their order stays for seven days.");

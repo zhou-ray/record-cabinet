@@ -6,7 +6,7 @@ export const DISCOVERY_LIMIT = 20;
 export const DISCOVERY_TYPES = ["forgotten", "wander", "digging"] as const;
 export type DiscoveryType = typeof DISCOVERY_TYPES[number];
 export type DiscoverySnapshot = {
-  id: string; accountId: string; generatedAt: number; expiresAt: number; version: "framework-1" | "cold-start-1";
+  id: string; accountId: string; generatedAt: number; expiresAt: number; version: "framework-1" | "cold-start-1" | "behavioral-1";
   bins: { type: DiscoveryType; albumIds: string[] }[];
 };
 const validId = (value: unknown): value is string => typeof value === "string" && /^[a-zA-Z0-9_-]{1,100}$/.test(value);
@@ -15,7 +15,7 @@ const validId = (value: unknown): value is string => typeof value === "string" &
 export function checkedDiscoverySnapshot(value: unknown, accountId: string): DiscoverySnapshot {
   const row = value as DiscoverySnapshot | null;
   if (!/^[a-f0-9]{64}$/.test(accountId) || !row || row.accountId !== accountId || !validId(row.id)
-    || (row.version !== "framework-1" && row.version !== "cold-start-1") || !Number.isSafeInteger(row.generatedAt) || row.generatedAt <= 0
+    || (row.version !== "framework-1" && row.version !== "cold-start-1" && row.version !== "behavioral-1") || !Number.isSafeInteger(row.generatedAt) || row.generatedAt <= 0
     || !Number.isSafeInteger(row.expiresAt) || row.expiresAt !== row.generatedAt + DISCOVERY_LIFETIME
     || !Array.isArray(row.bins) || row.bins.length !== DISCOVERY_TYPES.length) throw new Error("Invalid discovery snapshot.");
   const seen = new Set<string>();

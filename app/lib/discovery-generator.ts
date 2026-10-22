@@ -1,5 +1,7 @@
 import type { Album } from "../data/types";
-import type { EngagementEvent } from "./engagement";
+import type { CustomSystem } from "../catalog";
+import { scoreDiscovery, type DiscoveryWeights, type DiscoveryScore } from "./discovery-scoring";
+import type { PlaybackSession, EngagementEvent } from "./engagement";
 import { assignDiscoverySnapshot, DISCOVERY_LIMIT } from "./discovery-snapshot";
 import { eligibleSavedAlbums, membershipAlbumId, type SavedMembership } from "./saved-membership";
 
@@ -16,14 +18,16 @@ function artistKey(album: Album): string {
   return `name:${(primary?.name || album.artist || "unknown").normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase()}`;
 }
 
-/** Cold-start rules only: artist-balanced random sampling and simple exploration
- * tiers. Weighted duration/recency scoring and personal-bin signals belong to M5.
- */
+/** Stable cold-start fallback plus opt-in interpretable behavioral ranking. */
 export function generateDiscovery(input: {
   id: string; accountId: string; now: number; albums: readonly Album[]; membership: readonly SavedMembership[];
-  events: readonly EngagementEvent[]; random?: () => number;
+  events: readonly EngagementEvent[]; random?: () => number; behavioral?: boolean;
+  sessions?: readonly PlaybackSession[]; systems?: readonly CustomSystem[]; weights?: Partial<DiscoveryWeights>;
+  inspect?: (scores: readonly DiscoveryScore[]) => void;
 }) {
   const eligible = eligibleSavedAlbums(input.albums, input.membership, input.now);
+  const scores = input.behavioral ? new Map(scoreDiscovery({ ...input, albums: eligible }).map(row => [row.albumId, row])) : null;
+  if (scores) input.inspect?.([...scores.values()]);
   const ids = eligible.map(a => membershipAlbumId(a)!);
   const artists = new Map(eligible.map(a => [membershipAlbumId(a)!, artistKey(a)]));
   const random = input.random ?? Math.random;
@@ -45,12 +49,13 @@ export function generateDiscovery(input: {
     if (event.type === "album_completed") row.completions.add(event.sessionId);
     history.set(event.albumId, row);
   }
-  const forgotten = ids.filter(id => { const h = history.get(id); return h && h.completions.size >= 2 && input.now - h.last >= 30 * 86400000; }).slice(0, DISCOVERY_LIMIT);
+  const forgotten = ids.filter(id => { if (scores) return scores.get(id)!.forgottenEligible; const h = history.get(id); return h && h.completions.size >= 2 && input.now - h.last >= 30 * 86400000; }).sort((a, b) => scores ? scores.get(b)!.forgotten - scores.get(a)!.forgotten : 0).slice(0, DISCOVERY_LIMIT);
   const favorites = new Set(forgotten);
   const remaining = ids.filter(id => !favorites.has(id));
-  // Untouched, then inspected-only, then lightly played. Completed records do
-  // not fill Digging just to reach a quota. Ties retain the randomized order.
-  const diggingCandidates = remaining.filter(id => !history.get(id)?.completions.size).sort((a, b) => {
+  // Rank underexploration (or cold-start tiers). Completed records do not fill
+  // Digging just to reach a quota. Ties retain the randomized order.
+  const diggingCandidates = remaining.filter(id => !(scores ? scores.get(id)!.completions : history.get(id)?.completions.size)).sort((a, b) => {
+    if (scores) return scores.get(b)!.digging - scores.get(a)!.digging;
     const x = history.get(a), y = history.get(b);
     return (x?.plays ?? 0) - (y?.plays ?? 0) || (x?.inspections ?? 0) - (y?.inspections ?? 0);
   });
@@ -59,7 +64,7 @@ export function generateDiscovery(input: {
   // all of an artist's records away from Wander's diversity pass.
   const diggable = new Set(diggingCandidates);
   let unassignedDiggable = diggable.size;
-  const pool = [...remaining];
+  const pool = [...remaining].sort((a, b) => scores ? scores.get(b)!.wander - scores.get(a)!.wander : 0);
   const wander: string[] = [], counts = new Map<string, number>();
   const target = Math.min(DISCOVERY_LIMIT, remaining.length - reserve);
   while (pool.length && wander.length < target) {
@@ -75,5 +80,5 @@ export function generateDiscovery(input: {
   }
   const assigned = new Set(wander);
   const digging = diggingCandidates.filter(id => !assigned.has(id)).slice(0, reserve);
-  return assignDiscoverySnapshot({ ...input, version: "cold-start-1", candidates: { forgotten, wander, digging } });
+  return assignDiscoverySnapshot({ ...input, version: input.behavioral ? "behavioral-1" : "cold-start-1", candidates: { forgotten, wander, digging } });
 }
