@@ -46,7 +46,8 @@ export function useDiscovery(collection: Album[]) {
     // The refresh adapter belongs to this account; callbacks dispatch through its ref.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountId, storage, enabled]);
-  async function prepare() {
+  async function prepare(regenerate = false) {
+    if (regenerate && process.env.NODE_ENV !== "development") return;
     if (!enabled || !available.current || running.current) return;
     running.current = true; setBusy(true); setMessage("");
     const ticket = epoch.current;
@@ -63,10 +64,10 @@ export function useDiscovery(collection: Album[]) {
       if (history.generation !== writer.generation) return;
       let systems: ReturnType<typeof readOrganization>["systems"] = [];
       try { systems = readOrganization(organizationKey).systems; } catch { /* Organization is optional. */ }
-      const result = history.discovery && discoveryIsCurrent(history.discovery, Date.now()) ? history.discovery : await writer.saveDiscovery(generateDiscovery({
+      const result = !regenerate && history.discovery && discoveryIsCurrent(history.discovery, Date.now()) ? history.discovery : await writer.saveDiscovery(generateDiscovery({
         id: crypto.randomUUID(), accountId, now: Date.now(), albums: library.albums, membership: records, events: history.events, sessions: history.sessions, systems, behavioral: true,
         inspect: process.env.NODE_ENV === "development" ? scores => console.debug("Discovery scoring (local)", scores) : undefined,
-      }), Date.now());
+      }), Date.now(), regenerate ? history.discovery?.id : undefined);
       if (ticket !== epoch.current) return;
       setSnapshot(result); setMessage("Your bins are ready. Their order stays for seven days.");
     } catch (error) { if (ticket === epoch.current) setMessage(error instanceof Error ? error.message : "Discovery could not be prepared. Try again later."); }
@@ -80,7 +81,7 @@ export function useDiscovery(collection: Album[]) {
       blurb: DISCOVERY_COPY[bin.type].blurb, empty: DISCOVERY_COPY[bin.type].empty,
       albums: bin.albumIds.map(id => byId.get(id)!).filter(Boolean) }));
   }, [collection, current, snapshot, membership, now]);
-  return { enabled, bins, current: !!current, busy, prepare, cancel: () => { epoch.current++; refresh.cancel(); },
+  return { enabled, bins, current: !!current, busy, prepare, regenerate: () => prepare(true), cancel: () => { epoch.current++; refresh.cancel(); },
     message: message || refresh.progress.message, progress: refresh.progress,
     expiresAt: current ? snapshot.expiresAt : null };
 }

@@ -164,6 +164,14 @@ const sources = Object.fromEntries(['saved-membership', 'discovery-snapshot', 'e
       const saved = await repo.load();
       check(saved.discovery.id === results[0].id && saved.events.length === 0, 'snapshot persisted without synthetic history');
       check((await createEngagementStorage('e'.repeat(64)).load()).discovery === null, 'snapshot account isolation');
+      await writer.recordInspection({id:'kept-inspection',userId:user,albumId:'spotify:albumA',type:'album_inspected',timestamp:1000});
+      await writer.saveSession(window.engagementTestModules.engagement.startPlaybackSession("kept-session",user,"spotify:albumA",100,1000));
+      const beforeRefresh = await repo.load();
+      const forced = {...snapshot, id:'local-refresh', version:'behavioral-1'};
+      check((await writer.saveDiscovery(forced,1000,beforeRefresh.discovery.id)).id === 'local-refresh','explicit compare-and-replace refreshes current set');
+      const afterRefresh = await repo.load();
+      check(JSON.stringify(afterRefresh.events) === JSON.stringify(beforeRefresh.events) && JSON.stringify(afterRefresh.sessions) === JSON.stringify(beforeRefresh.sessions) && afterRefresh.generation === beforeRefresh.generation,'refresh preserves history and writer generation');
+      check((await peer.saveDiscovery({...forced,id:'stale-refresh'},1000,beforeRefresh.discovery.id)).id === 'local-refresh','stale regeneration cannot overwrite another tab');
       const replacement = {...snapshot, version: 'behavioral-1', id: 'replacement', generatedAt: 1000 + ttl, expiresAt: 1000 + 2 * ttl};
       check((await writer.saveDiscovery(replacement, 1000 + ttl)).id === 'replacement', 'expiry permits replacement');
       check((await writer.saveDiscovery(snapshot, 1000)).id === 'replacement', 'late older generation cannot overwrite newer');

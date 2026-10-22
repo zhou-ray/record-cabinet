@@ -156,7 +156,7 @@ export function createEngagementStorage(userId: string, factory: IDBFactory = in
         recordInspection: (value: Inspection) => repository.recordInspection(value, captured),
         saveSession: (value: PlaybackSession) => repository.saveSession(value, captured),
         /** First current snapshot wins across tabs. An expired set may be replaced. */
-        saveDiscovery(value: DiscoverySnapshot, now: number): Promise<DiscoverySnapshot> {
+        saveDiscovery(value: DiscoverySnapshot, now: number, replaceId?: string): Promise<DiscoverySnapshot> {
           const snapshot = checkedDiscoverySnapshot(value, userId);
           if (!discoveryIsCurrent(snapshot, now)) throw new Error("Discovery snapshot is not current.");
           return transaction("readwrite", (tx, fail) => {
@@ -166,8 +166,9 @@ export function createEngagementStorage(userId: string, factory: IDBFactory = in
               try {
                 if (request.result?.generation === captured) {
                   const previous = checkedDiscoverySnapshot(request.result.snapshot, userId);
-                  if (discoveryIsCurrent(previous, now) || previous.generatedAt > snapshot.generatedAt) { result = previous; return; }
+                  if ((replaceId !== undefined ? previous.id !== replaceId : discoveryIsCurrent(previous, now)) || previous.generatedAt > snapshot.generatedAt) { result = previous; return; }
                 }
+                if (replaceId !== undefined && request.result?.generation !== captured) { fail(new Error("Discovery changed. Try again.")); return; }
                 metadata.put({ generation: captured, snapshot }, "discovery-snapshot");
               } catch (error) { fail(error); }
             };

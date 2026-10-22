@@ -86,6 +86,17 @@ function cookie() {
   const first=await read();
   assert.deepEqual(first.snapshot.bins.map(b=>b.albumIds.length),[0,20,20]);
   assert.equal(first.snapshot.version,'behavioral-1');
+  const regenerate = page.getByRole('button',{name:'Regenerate discovery bins (local test)',exact:true});
+  if(process.env.TEST_REGENERATION === '1') {
+    await regenerate.click();
+    await page.waitForFunction(()=>!document.querySelector('[aria-label="Discovery preparation"] button').disabled);
+    const refreshed = await read();
+    assert.notEqual(refreshed.snapshot.id,first.snapshot.id,'local regeneration replaces a still-current set');
+    assert.equal(refreshed.snapshot.version,'behavioral-1');
+    assert.equal(requests,4,'regeneration reuses all fresh membership checks');
+    Object.assign(first,refreshed);
+  } else assert.equal(await regenerate.count(),0,'production hides regeneration control');
+
   assert.equal(first.snapshot.bins[1].albumIds[0],'spotify:a124','personal-bin membership is passed through to generation');
   const artistCounts=new Map();
   for(const id of first.snapshot.bins[1].albumIds){const artist=Number(id.slice('spotify:a'.length))%10;artistCounts.set(artist,(artistCounts.get(artist)||0)+1);}

@@ -506,6 +506,7 @@ export default function RecordBin({ collection, genreEditing, onGenreUpdate }: {
           <p>Small paths through your Spotify saved albums. Each set stays for seven days.</p>
           {process.env.NEXT_PUBLIC_ENGAGEMENT_ENABLED !== "true" && <p>History collection is off. These bins use only history already saved on this device.</p>}
           <button disabled={discovery.busy} onClick={() => void discovery.prepare()}>{discovery.current ? "Check saved albums" : discovery.progress.status === "partial" ? "Continue preparing bins" : "Prepare discovery bins"}</button>
+          {process.env.NODE_ENV === "development" && <button disabled={discovery.busy} onClick={() => void discovery.regenerate()}>Regenerate discovery bins (local test)</button>}
           {discovery.busy && <button onClick={discovery.cancel}>Cancel</button>}
           <p role="status">{discovery.message}{discovery.progress.total > 0 && ` ${discovery.progress.checked} of ${discovery.progress.total} albums checked.`}</p>
           {discovery.expiresAt && <p>This set lasts until {new Date(discovery.expiresAt).toLocaleDateString()}.</p>}
