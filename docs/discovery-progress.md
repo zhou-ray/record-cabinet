@@ -2,9 +2,9 @@
 
 ## Current milestone
 
-Milestone 4 — Cold-start Heuristics.
+Milestone 5 — Behavioral Scoring.
 
-**Status: Milestone 4 deployed (2026-10-20).** Artist-balanced Wander, exploration tiers for Digging, and conservative Forgotten Favorites are implemented and verified. The user confirmed the remembered-position thumbnails and authorized pushing/deploying both changes. Milestone 5 has not started. Tracking remains off by default. Production application commit: `fed892b`.
+**Status: Milestone 5 authorized and in progress locally (2026-10-21).** Milestone 4 and the preparation/tutorial follow-ups are deployed. Tracking remains off by default. Production application commit: `90ce59a`. No Milestone 6 work authorized.
 
 Set `NEXT_PUBLIC_ENGAGEMENT_ENABLED=true` **at build time** to exercise instrumentation. It is deliberately off in ordinary builds and `.env.example` pending provider-release review. The 2026-10-15 deployment includes these controls with collection explicitly disabled; see the latest deployment entry below.
 
@@ -457,3 +457,10 @@ User requested using their own records in the tour instead of switching an exist
 Files: `app/library-screen.tsx`, `app/listening-guide.tsx`, `app/guided-tour.tsx`, `app/record-bin.tsx`, `app/spotify-player.tsx`, the three tour/public-demo/discovery smoke scripts, this document. Lint and production build/TypeScript passed. Browser verification below. Last stable local commit: `28c974e`; production remains `fed892b`. Known limits: touring Spotify playback still requires a working Spotify connection/Premium; Skip remains available. No imports or provider requests are triggered merely by starting the tour. Exact next step: test local Settings replay with an existing library and real Spotify playback. No deployment or Milestone 5 work.
 
 Browser checks passed at 390px/1400px: authenticated fixture retains its 125 saved records when starting, skipping and escaping the tour; existing discovery/player regression passed. Guest full tour still completes with demo records, actual local audio and tonearm movement under reduced/normal motion. No live Spotify requests; live Spotify tour completion remains a manual check.
+
+
+## Preparation/tutorial production release (2026-10-21)
+
+User authorized release then explicitly confirmed starting Milestone 5. Pushed `main` through `90ce59a` to GitHub and deployed that application commit to https://record-cabinet-livid.vercel.app. Deployment `dpl_BmvybhgKbiMZaAdgJEEAYJCUWr8J`; immutable URL https://record-cabinet-klswexzpb-ray-s-stuff.vercel.app. Build explicitly sets `NEXT_PUBLIC_ENGAGEMENT_ENABLED=false`. Vercel reports READY. Live Chrome full guest tutorial passed at 390px reduced motion and 1400px normal motion, including local audio, arm seeking, finish and reload, without Spotify requests/page errors/overflow. Existing-library/Spotify checks remain manual on production; earlier local mocked account checks passed.
+
+Only this release handoff is being pushed in addition to the approved application commits. Milestone 5 development remains local. Last stable production application commit: `90ce59a`. Next: finish Milestone 5 scoring, verify and document; do not start Milestone 6 or enable tracking.
