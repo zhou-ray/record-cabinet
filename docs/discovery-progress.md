@@ -4,7 +4,7 @@
 
 Milestone 6 — Organizational Feedback.
 
-**Status: Milestone 6 authorized; persistence/generation foundation in progress locally (2026-10-22).** Milestone 5 is deployed. Tracking remains off by default. Production application commit: `ec72ac0`. Milestone 7 has not started.
+**Status: Milestone 6 in progress; persistence/generation foundation verified locally (2026-10-22).** Milestone 5 is deployed. Tracking remains off by default. Production application commit: `ec72ac0`. Milestone 7 has not started.
 
 Set `NEXT_PUBLIC_ENGAGEMENT_ENABLED=true` **at build time** to exercise instrumentation. It is deliberately off in ordinary builds and `.env.example` pending provider-release review. The 2026-10-15 deployment includes these controls with collection explicitly disabled; see the latest deployment entry below.
 
@@ -496,3 +496,20 @@ Browser verification passed against an isolated development checkout at 390px/14
 User approved Milestone 5 testing, authorized deployment and starting Milestone 6. Pushed `main` through `ec72ac0` and deployed https://record-cabinet-livid.vercel.app. Deployment `dpl_AxHo3ACEg86SmpKyeQ71rVayEPzL`; immutable URL https://record-cabinet-5efmkpys9-ray-s-stuff.vercel.app. Explicit build setting `NEXT_PUBLIC_ENGAGEMENT_ENABLED=false`; Vercel READY. Live Chrome guest tour passed at 390px reduced motion and 1400px normal motion with real local audio, seeking, finish and reload, without Spotify requests/errors/overflow. Signed-in behavioral discovery was verified locally in the prior milestone; existing live sets remain stable until expiry. Local-only regeneration stays absent from production.
 
 This release handoff is pushed separately from Milestone 6 implementation. Last stable production app: `ec72ac0`. Milestone 6 starts with durable feedback and generation semantics; no Milestone 7 work.
+
+## Milestone 6 clean sub-boundary — feedback persistence/generation (2026-10-22)
+
+Implemented the foundation, not the full milestone:
+- New `app/lib/discovery-feedback.ts` validates/allowlists account-scoped remove/move decisions, keeps latest feedback per album/bin, bounds storage to 10,000 pairs, and applies source-only removal without refilling or mutating input. Move payloads retain destination system/bin IDs; labels are not interpreted.
+- Generation-bound `saveDiscoveryFeedback` in `app/lib/engagement-storage.ts` atomically saves the decision and removes the source assignment, validates current source membership, supports idempotent retries, and rejects stale/reset/invalid actions. Snapshot writes re-read feedback transactionally to prevent stale generation from resurrecting removed assignments. Reset clears feedback while preserving its existing reset fences. No schema-version bump needed; uses existing metadata store.
+- `app/lib/discovery-generator.ts` and `app/use-discovery.ts` incorporate source-bin exclusions into future generation. Removing from Wander is not a global dislike; the record remains eligible for Digging/Forgotten when their criteria fit. Saved-only and cap/no-overlap safeguards remain. No UI actions are exposed yet.
+- `app/lib/personalization-export.ts` exports allowlisted feedback; existing Download My Data automatically passes the new loaded field. Listening events/sessions are not invented, cleared or enabled by feedback.
+
+Files: the five app files above, new `tests/discovery-feedback.test.mjs`, `scripts/engagement-storage-smoke.cjs`, `scripts/engagement-integration-smoke.cjs`, and both discovery documents. Tests cover allowlisting, account separation, invalid/conflicting/latest/idempotent decisions, source-only removal, input immutability, scoped future generation, foreign/future exclusions and export privacy. Real IndexedDB checks cover atomic persistence, duplicate saves, rejected assignments, stale-generation filtering, reload and reset fences. Browser results below.
+
+Remaining work / exact next step: build a coordinated move operation across personal organization (localStorage) and feedback (IndexedDB), with truthful partial-failure reporting and retry. Persist the actual personal assignment before source removal; never erase a successfully filed album on failure or roll back unrelated concurrent organization edits. Then implement compact searchable destination selection across systems (including no-bin/create flow), source-specific Remove and optional Pin/Keep, action messages/reconciliation, accessibility, and full mobile/desktop move/remove/reload/regenerate/reset checks. Existing personal membership scoring provides the positive move signal only after filing is real. Update privacy UI copy for explicit feedback before exposing controls. Do not start Milestone 7.
+
+Stopping at this safe data-layer boundary because exposing Move before coordinating the two storage systems would risk partial moves presented as successes. No Milestone 6 controls/deployment yet; no need to manually test feedback UI this turn. Last stable app commit before foundation: `ec72ac0`; release handoff `5f80014`. Production is Milestone 5. Tracking remains off by default. No automatic Spotify calls added.
+
+
+Verification complete: 270 unit tests, lint, production webpack build/TypeScript and diff check passed. Real IndexedDB feedback/concurrency/reset checks passed. Production-build discovery regression passed at 390px/1400px with mocked Spotify; authenticated export/reset integration passed at both widths, retaining then deleting feedback as intended while collection remained disabled. No live Spotify calls used in local validation. Repository left at the tested data-layer sub-boundary; milestone remains unfinished pending the controls/coordinated move work listed above.

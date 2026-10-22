@@ -1,3 +1,4 @@
+import { applyDiscoveryFeedback, checkedDiscoveryFeedback, mergeDiscoveryFeedback, type DiscoveryFeedback } from "./discovery-feedback";
 import { checkedDiscoverySnapshot, discoveryIsCurrent, type DiscoverySnapshot } from "./discovery-snapshot";
 import { checkedSession, engagementAccount, inspection, sessionEvents, type EngagementEvent, type Inspection, type PlaybackSession } from "./engagement";
 
@@ -68,6 +69,7 @@ export function createEngagementStorage(userId: string, factory: IDBFactory = in
         next = request.result + 1;
         metadata.put(next, "generation");
         metadata.delete("discovery-snapshot");
+        metadata.delete("discovery-feedback");
         tx.objectStore("events").clear(); tx.objectStore("sessions").clear();
         } catch (error) { fail(error); }
       };
@@ -136,12 +138,14 @@ export function createEngagementStorage(userId: string, factory: IDBFactory = in
         return () => undefined;
       }, expectedGeneration);
     },
-    load(): Promise<{ events: EngagementEvent[]; sessions: PlaybackSession[]; generation: number; discovery: DiscoverySnapshot | null }> {
+    load(): Promise<{ events: EngagementEvent[]; sessions: PlaybackSession[]; generation: number; discovery: DiscoverySnapshot | null; feedback: DiscoveryFeedback[] }> {
       return transaction("readonly", tx => {
         const events = tx.objectStore("events").getAll(), sessions = tx.objectStore("sessions").getAll();
         const marker = tx.objectStore("metadata").get("generation");
         const discovery = tx.objectStore("metadata").get("discovery-snapshot");
+        const feedback = tx.objectStore("metadata").get("discovery-feedback");
         return () => ({ events: events.result, sessions: sessions.result, generation: marker.result,
+          feedback: (feedback.result ?? []).map((row: DiscoveryFeedback) => checkedDiscoveryFeedback(row, userId)),
           discovery: discovery.result?.generation === marker.result ? checkedDiscoverySnapshot(discovery.result.snapshot, userId) : null });
       });
     },
@@ -155,6 +159,34 @@ export function createEngagementStorage(userId: string, factory: IDBFactory = in
       return { generation: captured,
         recordInspection: (value: Inspection) => repository.recordInspection(value, captured),
         saveSession: (value: PlaybackSession) => repository.saveSession(value, captured),
+        /** Atomic assignment removal + feedback, fenced against history reset. Filing itself is a separate UI concern. */
+        saveDiscoveryFeedback(value: DiscoveryFeedback, now: number): Promise<DiscoverySnapshot> {
+          const feedback = checkedDiscoveryFeedback(value, userId);
+          if (!Number.isSafeInteger(now) || feedback.timestamp > now) throw new Error("Invalid feedback time.");
+          return transaction("readwrite", (tx, fail) => {
+            const metadata = tx.objectStore("metadata"), request = metadata.get("discovery-snapshot");
+            let result: DiscoverySnapshot;
+            request.onsuccess = () => {
+              try {
+                if (request.result?.generation !== captured) throw new Error("Discovery is no longer available.");
+                const snapshot = checkedDiscoverySnapshot(request.result.snapshot, userId);
+                if (!discoveryIsCurrent(snapshot, now)) throw new Error("Discovery expired. Prepare a new set first.");
+                const saved = metadata.get("discovery-feedback");
+                saved.onsuccess = () => {
+                  try {
+                    const rows: DiscoveryFeedback[] = saved.result ?? [];
+                    const duplicate = rows.some(row => JSON.stringify(checkedDiscoveryFeedback(row, userId)) === JSON.stringify(feedback));
+                    if (!duplicate && !snapshot.bins.some(bin => bin.type === feedback.bin && bin.albumIds.includes(feedback.albumId))) throw new Error("This record is no longer in that discovery bin.");
+                    result = checkedDiscoverySnapshot(applyDiscoveryFeedback(snapshot, feedback), userId);
+                    metadata.put(mergeDiscoveryFeedback(rows, feedback, userId), "discovery-feedback");
+                    metadata.put({ generation: captured, snapshot: result }, "discovery-snapshot");
+                  } catch (error) { fail(error); }
+                };
+              } catch (error) { fail(error); }
+            };
+            return () => result;
+          }, captured);
+        },
         /** First current snapshot wins across tabs. An expired set may be replaced. */
         saveDiscovery(value: DiscoverySnapshot, now: number, replaceId?: string): Promise<DiscoverySnapshot> {
           const snapshot = checkedDiscoverySnapshot(value, userId);
@@ -169,7 +201,16 @@ export function createEngagementStorage(userId: string, factory: IDBFactory = in
                   if ((replaceId !== undefined ? previous.id !== replaceId : discoveryIsCurrent(previous, now)) || previous.generatedAt > snapshot.generatedAt) { result = previous; return; }
                 }
                 if (replaceId !== undefined && request.result?.generation !== captured) { fail(new Error("Discovery changed. Try again.")); return; }
-                metadata.put({ generation: captured, snapshot }, "discovery-snapshot");
+                // Re-read durable feedback in this write transaction: another tab may
+                // have removed an assignment after the generator read its inputs.
+                const feedback = metadata.get("discovery-feedback");
+                feedback.onsuccess = () => {
+                  try {
+                    const rows: DiscoveryFeedback[] = (feedback.result ?? []).map((row: DiscoveryFeedback) => checkedDiscoveryFeedback(row, userId));
+                    result = { ...snapshot, bins: snapshot.bins.map(bin => ({ ...bin, albumIds: bin.albumIds.filter(id => !rows.some(row => row.bin === bin.type && row.albumId === id && row.timestamp <= now)) })) };
+                    metadata.put({ generation: captured, snapshot: result }, "discovery-snapshot");
+                  } catch (error) { fail(error); }
+                };
               } catch (error) { fail(error); }
             };
             return () => result;

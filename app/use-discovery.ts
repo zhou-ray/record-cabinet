@@ -65,7 +65,7 @@ export function useDiscovery(collection: Album[]) {
       let systems: ReturnType<typeof readOrganization>["systems"] = [];
       try { systems = readOrganization(organizationKey).systems; } catch { /* Organization is optional. */ }
       const result = !regenerate && history.discovery && discoveryIsCurrent(history.discovery, Date.now()) ? history.discovery : await writer.saveDiscovery(generateDiscovery({
-        id: crypto.randomUUID(), accountId, now: Date.now(), albums: library.albums, membership: records, events: history.events, sessions: history.sessions, systems, behavioral: true,
+        id: crypto.randomUUID(), accountId, now: Date.now(), albums: library.albums, membership: records, events: history.events, feedback: history.feedback, sessions: history.sessions, systems, behavioral: true,
         inspect: process.env.NODE_ENV === "development" ? scores => console.debug("Discovery scoring (local)", scores) : undefined,
       }), Date.now(), regenerate ? history.discovery?.id : undefined);
       if (ticket !== epoch.current) return;

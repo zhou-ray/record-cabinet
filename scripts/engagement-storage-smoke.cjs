@@ -2,7 +2,7 @@
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const fs = require('node:fs');
 const ts = require('typescript');
-const sources = Object.fromEntries(['saved-membership', 'discovery-snapshot', 'engagement', 'engagement-storage'].map(name => [name, ts.transpileModule(fs.readFileSync(`app/lib/${name}.ts`, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText]));
+const sources = Object.fromEntries(['saved-membership', 'discovery-snapshot', 'engagement', 'discovery-feedback', 'engagement-storage'].map(name => [name, ts.transpileModule(fs.readFileSync(`app/lib/${name}.ts`, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText]));
 (async () => {
   const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: true });
   try {
@@ -175,6 +175,21 @@ const sources = Object.fromEntries(['saved-membership', 'discovery-snapshot', 'e
       const replacement = {...snapshot, version: 'behavioral-1', id: 'replacement', generatedAt: 1000 + ttl, expiresAt: 1000 + 2 * ttl};
       check((await writer.saveDiscovery(replacement, 1000 + ttl)).id === 'replacement', 'expiry permits replacement');
       check((await writer.saveDiscovery(snapshot, 1000)).id === 'replacement', 'late older generation cannot overwrite newer');
+      const feedback = {userId:user,albumId:'spotify:one',bin:'wander',snapshotId:replacement.id,action:'remove',timestamp:replacement.generatedAt};
+      const historyBefore = await repo.load();
+      await writer.saveDiscoveryFeedback(feedback,replacement.generatedAt);
+      await peer.saveDiscoveryFeedback(feedback,replacement.generatedAt);
+      const historyAfter = await repo.load();
+      check(historyAfter.feedback.length === 1 && historyAfter.discovery.bins[1].albumIds.length === 0,'feedback + assignment removal is durable and idempotent');
+      check(JSON.stringify(historyBefore.events) === JSON.stringify(historyAfter.events) && JSON.stringify(historyBefore.sessions) === JSON.stringify(historyAfter.sessions),'feedback never creates or deletes listening history');
+      let rejectedFeedback = false;
+      try { await writer.saveDiscoveryFeedback({...feedback,albumId:'spotify:notInBin'},replacement.generatedAt); } catch { rejectedFeedback = true; }
+      check(rejectedFeedback && (await repo.load()).feedback.length === 1,'invalid assignment feedback rolls back');
+      const staleInput = {...replacement,id:'regenerated'};
+      const refreshed = await writer.saveDiscovery(staleInput,replacement.generatedAt,replacement.id);
+      check(refreshed.bins[1].albumIds.length === 0,'transaction reapplies feedback even if generation used stale inputs');
+      // Keep the existing reload/reset assertions using the fixture identity.
+      await writer.saveDiscovery({...refreshed,id:'replacement'},replacement.generatedAt,'regenerated');
       window.discoveryWriter = writer;
       window.discoveryFixture = replacement;
     });
@@ -193,7 +208,7 @@ const sources = Object.fromEntries(['saved-membership', 'discovery-snapshot', 'e
       try { await window.discoveryWriter.saveDiscovery(window.discoveryFixture, window.discoveryFixture.generatedAt); }
       catch (error) { rejected = error.name === 'HistoryResetError'; }
       const repo = window.engagementTestModules['engagement-storage'].createEngagementStorage('d'.repeat(64));
-      if (!rejected || (await repo.load()).discovery !== null) throw Error('reset resurrected discovery snapshot');
+      if (!rejected || (await repo.load()).feedback.length !== 0 || (await repo.load()).discovery !== null) throw Error('reset resurrected discovery snapshot');
       const writer = await repo.writer();
       await writer.saveDiscovery(window.discoveryFixture, window.discoveryFixture.generatedAt);
       await repo.clear();

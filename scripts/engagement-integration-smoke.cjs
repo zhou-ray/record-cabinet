@@ -53,6 +53,7 @@ function cookie() {
     return route.fulfill({ status: 503, json: { error: 'Unexpected test request' } });
    });
    await page.goto(origin + '/settings');
+   await page.getByRole('button', {name:'Skip',exact:true}).click();
    await page.waitForTimeout(400);
    if (process.env.EXPECT_DISABLED === 'true') {
     assert.equal(await page.getByRole('button', { name: 'Tracking debug', exact: true }).count(), 0);
@@ -75,6 +76,7 @@ function cookie() {
        id: 'export-test', accountId: account, generatedAt: 1000, expiresAt: 1000 + 7 * 86400000, version: 'framework-1',
        bins: [{type: 'forgotten', albumIds: []}, {type: 'wander', albumIds: ['spotify:old']}, {type: 'digging', albumIds: []}],
       } }, 'discovery-snapshot');
+      metadata.put([{userId:account,albumId:'spotify:old',bin:'wander',snapshotId:'export-test',action:'remove',timestamp:1000}], 'discovery-feedback');
       tx.oncomplete = resolve;
      }); snapshotDb.close();
     }, account);
@@ -83,6 +85,7 @@ function cookie() {
     const retained = JSON.parse(await fs.readFile(await (await retainedDownload).path(), 'utf8'));
     assert.equal(retained.events[0].id, 'retained-inspection', 'disabled tracking still permits export of old history');
     assert.equal(retained.generatedBins.history[0].id, 'export-test');
+    assert.equal(retained.generatedBins.feedback[0].action,'remove');
     await page.getByRole('button', { name: 'Reset Personalization History', exact: true }).click();
     await page.getByRole('button', { name: 'Reset history', exact: true }).click();
     await page.getByRole('button', { name: 'Reset history', exact: true }).waitFor({ state: 'detached' });
@@ -91,6 +94,7 @@ function cookie() {
     const clearedData = JSON.parse(await fs.readFile(await (await clearedDownload).path(), 'utf8'));
     assert.deepEqual(clearedData.events, []); assert.deepEqual(clearedData.sessions, []);
     assert.deepEqual(clearedData.generatedBins.history, []);
+    assert.deepEqual(clearedData.generatedBins.feedback, []);
     assert.deepEqual(errors, []); await context.close();
     console.log(`PASS: no automatic history collection; empty/retained-history downloads and reset work with tracking disabled at ${width}px`);
     continue;
