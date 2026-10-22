@@ -2,9 +2,9 @@
 
 ## Current milestone
 
-Milestone 5 — Behavioral Scoring.
+Milestone 6 — Organizational Feedback.
 
-**Status: Milestone 5 complete locally (2026-10-21).** Milestone 4 and the preparation/tutorial follow-ups are deployed. Tracking remains off by default. Production application commit: `90ce59a`. No Milestone 6 work authorized.
+**Status: Milestone 6 authorized; persistence/generation foundation in progress locally (2026-10-22).** Milestone 5 is deployed. Tracking remains off by default. Production application commit: `ec72ac0`. Milestone 7 has not started.
 
 Set `NEXT_PUBLIC_ENGAGEMENT_ENABLED=true` **at build time** to exercise instrumentation. It is deliberately off in ordinary builds and `.env.example` pending provider-release review. The 2026-10-15 deployment includes these controls with collection explicitly disabled; see the latest deployment entry below.
 
@@ -489,3 +489,10 @@ Added `Regenerate discovery bins (local test)` under Discover only in developmen
 Files: `app/record-bin.tsx`, `app/use-discovery.ts`, `app/lib/engagement-storage.ts`, `scripts/discovery-integration-smoke.cjs`, `scripts/engagement-storage-smoke.cjs`, this document. Checks: 266 tests, lint and production webpack build/TypeScript passed; browser results below. Last stable local commit `424d06e`; production app remains `90ce59a`. No deployment or Milestone 6 work. Exact next step: open Discover in `npm run dev`, click the local regeneration button, then download data and confirm snapshot version `behavioral-1` with a new ID/expiration while history remains intact. In development, scoring rows appear in the browser console on generation. Tracking remains off unless explicitly enabled separately.
 
 Browser verification passed against an isolated development checkout at 390px/1400px: regeneration replaces an unexpired snapshot with a new `behavioral-1` ID while reusing all fresh membership checks (no extra provider requests), and existing discovery/lock/cancel/reset/playback checks pass. Real IndexedDB tests verify nonempty inspection/session history and generation are unchanged, stale compare-and-replace loses to a newer snapshot, and reset fencing/rollback still work. Production bundle inspection confirms the control label is absent. The user's existing localhost:3000 development server was left running; only the isolated test server was stopped.
+
+
+## Milestone 5 production release (2026-10-22)
+
+User approved Milestone 5 testing, authorized deployment and starting Milestone 6. Pushed `main` through `ec72ac0` and deployed https://record-cabinet-livid.vercel.app. Deployment `dpl_AxHo3ACEg86SmpKyeQ71rVayEPzL`; immutable URL https://record-cabinet-5efmkpys9-ray-s-stuff.vercel.app. Explicit build setting `NEXT_PUBLIC_ENGAGEMENT_ENABLED=false`; Vercel READY. Live Chrome guest tour passed at 390px reduced motion and 1400px normal motion with real local audio, seeking, finish and reload, without Spotify requests/errors/overflow. Signed-in behavioral discovery was verified locally in the prior milestone; existing live sets remain stable until expiry. Local-only regeneration stays absent from production.
+
+This release handoff is pushed separately from Milestone 6 implementation. Last stable production app: `ec72ac0`. Milestone 6 starts with durable feedback and generation semantics; no Milestone 7 work.
