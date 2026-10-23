@@ -4,7 +4,7 @@
 
 Milestone 6 — Organizational Feedback.
 
-**Status: Milestone 6 in progress; persistence/generation foundation verified locally (2026-10-22).** Milestone 5 is deployed. Tracking remains off by default. Production application commit: `ec72ac0`. Milestone 7 has not started.
+**Status: Milestone 6 complete locally (2026-10-23); awaiting user review and release.** Milestone 5 is deployed. Tracking remains off by default. Production application commit: `ec72ac0`. Milestone 7 has not started.
 
 Set `NEXT_PUBLIC_ENGAGEMENT_ENABLED=true` **at build time** to exercise instrumentation. It is deliberately off in ordinary builds and `.env.example` pending provider-release review. The 2026-10-15 deployment includes these controls with collection explicitly disabled; see the latest deployment entry below.
 
@@ -513,3 +513,18 @@ Stopping at this safe data-layer boundary because exposing Move before coordinat
 
 
 Verification complete: 270 unit tests, lint, production webpack build/TypeScript and diff check passed. Real IndexedDB feedback/concurrency/reset checks passed. Production-build discovery regression passed at 390px/1400px with mocked Spotify; authenticated export/reset integration passed at both widths, retaining then deleting feedback as intended while collection remained disabled. No live Spotify calls used in local validation. Repository left at the tested data-layer sub-boundary; milestone remains unfinished pending the controls/coordinated move work listed above.
+
+
+## Milestone 6 completion — filing controls (2026-10-23)
+
+Completed the remaining move/remove UI and coordinated persistence. Discover sleeves now offer Move to personal bin and Remove from this Discover bin. The destination picker searches bin/system names, shows eight results at a time, prioritizes recently used destinations and supports creating a first or additional personal system without leaving Discover. Personal filing is read from current storage, updated synchronously and verified before saving feedback/removing the source assignment. A failed second step leaves the filed copy intact and shows Retry removal; retry never rewrites personal organization or rolls back unrelated changes. A failed first step leaves the Discover assignment untouched.
+
+Account-scoped Web Locks prevent simultaneous Discover filing actions across tabs. Existing generation/reset fences protect the feedback transaction; mutation epochs protect UI state from late reads and stale retries. Successful feedback broadcasts a local refresh to other tabs. Changed source bins return to the shelf using existing reconciliation, with the player still mounted. Explicit choices work independently of the listening collection flag, remain local, and are described in Privacy alongside export/reset behavior. Actual personal assignments continue to supply the positive organization score; removals exclude only their source Discover type from future sets.
+
+Files changed in this completion: `app/discovery-actions.tsx`, `app/discovery-actions.module.css`, `app/lib/discovery-move.ts`, `app/use-discovery.ts`, `app/record-bin.tsx`, `app/record-bin.module.css`, `app/privacy/page.tsx`, `tests/discovery-move.test.mjs`, `scripts/discovery-feedback-smoke.cjs`, and both discovery documents.
+
+Verification: 274 unit tests, lint, production webpack build/TypeScript and diff check passed. New coordinator tests cover successful order of writes, missing destinations, failed writes/readback and retry preserving later personal changes. Real Chrome feedback checks passed at 390px and 1400px: 101 destinations with bounded search results, injected IndexedDB feedback failure after successful filing, retry, reload persistence, source-only removal, playback continuity, expiry/regeneration respecting exclusions with no additional provider requests, and creating/filing into a first personal system. Existing Discover integration passed at both widths (preparation, cache, cancellation, cross-tab lock, cooldown, expiry, browsing, playback and reset). Real IndexedDB persistence/concurrency/reset tests passed. All provider responses were mocked; no live Spotify quota used. Picker appearance was inspected at mobile width; no horizontal overflow.
+
+Known limits: localStorage personal filing and IndexedDB feedback cannot be one atomic transaction; partial success is intentional and explicit. Closing/reloading a partial move preserves the filed copy and source record, but loses the in-memory Retry button; reopening and moving to the same destination safely finishes it. Web Locks support is required. Legacy personal-editor/cloud writes do not participate in the Discover action lock; the synchronous latest-state merge/readback reduces conflicts but is not a universal cross-tab organization transaction. Feedback remains device-local; personal filing uses existing cloud sync. Pin/Keep is deferred as optional scope to avoid extra controls and unresolved interaction with source removal. No new tracking or Spotify requests were introduced.
+
+Exact next step: user review locally — Discover → open a sleeve → Move to personal bin or Remove from this Discover bin; check the destination and reload. Then await push/deployment authorization. Do not start Milestone 7. Last stable local commit before this completion: `025745d`; production remains Milestone 5 at `ec72ac0`. No push or deployment in this session. The user’s existing development server was left running; only the isolated port-3194 test server was stopped.

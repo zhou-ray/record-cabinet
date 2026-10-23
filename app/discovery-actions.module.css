@@ -1,0 +1,11 @@
+.actions { width: 100%; min-width: 0; }
+.actions > div:first-child { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.actions button { min-height: 44px; white-space: normal; overflow-wrap: anywhere; }
+.panel { padding: 16px 0; max-width: 560px; }
+.panel label { display: grid; gap: 6px; }
+.panel input { width: 100%; min-width: 0; padding: 10px; border: 1px solid #b8beaf; border-radius: 4px; background: #fffdf7; color: #343c2f; }
+.panel > button { margin: 4px 8px 4px 0; }
+.list { display: grid; gap: 8px; max-height: 300px; overflow-y: auto; margin: 12px 0; }
+.list button { display: grid; text-align: left; white-space: normal; overflow-wrap: anywhere; padding: 10px 12px; }
+.list span { font-size: .8rem; opacity: .8; }
+.create { border: 0; padding: 0; min-width: 0; }

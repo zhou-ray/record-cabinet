@@ -14,6 +14,7 @@ import { loadAlbumDetails } from "./lib/load-album-details";
 import { createRecordShuffle } from "./lib/record-shuffle";
 import { readDiggingPosition, resolveDiggingPosition, type DiggingPosition } from "./lib/digging-position";
 import { readOrganization } from "./lib/collection-backup";
+import DiscoveryActions from "./discovery-actions";
 import BinOrganizer, { AlbumFiling } from "./bin-organizer";
 import { shouldReturnRecord } from "./lib/bin-organization";
 import { RECORD_STEP as STEP, recordReleaseTarget } from "./lib/bin-gesture";
@@ -568,8 +569,8 @@ export default function RecordBin({ collection, genreEditing, onGenreUpdate }: {
         {album.importOrigin && <p>Imported from {album.importOrigin.source.startsWith("playlist:") ? <a href={`https://open.spotify.com/playlist/${album.importOrigin.source.slice(9)}`} target="_blank" rel="noreferrer">Spotify playlist ↗</a> : album.importOrigin.source === "liked" ? "Liked Songs" : "Saved albums"}{album.importOrigin.trackId && <> · <a href={`https://open.spotify.com/track/${album.importOrigin.trackId}`} target="_blank" rel="noreferrer">Source song ↗</a></>}</p>}
         {album.externalUrl && <a className={styles.spotifyLink} href={album.externalUrl} target="_blank" rel="noreferrer">{album.playback.kind === "spotify-pending" ? "Open source song in Spotify ↗" : "Open album in Spotify ↗"}</a>}
         <p className={styles.previewNote}>{album.playback.kind === "none" ? "Manually added record · no audio attached." : album.playback.kind === "local" ? "A 30-second demo of the whole record, in order." : "A whole album, played here. Spotify Premium required."}</p>
-        <div className={styles.albumTools}>
-        {<AlbumFiling key={album.id} album={album} systems={systems} systemId={systemId} onSelect={id => saveOrganization(systems, id)} onChange={updateSystem} onCreate={createSystem} />}
+        <div className={`${styles.albumTools} ${activeBin.id.startsWith("discovery:") ? styles.discoveryTools : ""}`}>
+        {activeBin.id.startsWith("discovery:") ? <DiscoveryActions key={`${activeBin.id}:${album.id}`} album={album} systems={systems} feedback={discovery.feedback} busy={discovery.busy} onAction={destination => discovery.act(activeBin.id, album, destination)} onCreate={discovery.createSystem} /> : <AlbumFiling key={album.id} album={album} systems={systems} systemId={systemId} onSelect={id => saveOrganization(systems, id)} onChange={updateSystem} onCreate={createSystem} />}
         <GenreEditor key={`genres:${album.id}`} albums={collection} album={album} disabled={!genreEditing} onUpdate={onGenreUpdate} />
         </div>
         {storageMessage && <p role="status">{storageMessage}</p>}
