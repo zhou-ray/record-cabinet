@@ -4,7 +4,7 @@
 
 Milestone 6 — Organizational Feedback.
 
-**Status: Milestone 6 complete locally (2026-10-23); awaiting user review and release.** Milestone 5 is deployed. Tracking remains off by default. Production application commit: `ec72ac0`. Milestone 7 has not started.
+**Status: Milestone 6 complete and deployed (2026-10-23).** User verified filing/removal and playback locally. Tracking remains off by default. Production application commit: `0e67241`. Milestone 7 has not started.
 
 Set `NEXT_PUBLIC_ENGAGEMENT_ENABLED=true` **at build time** to exercise instrumentation. It is deliberately off in ordinary builds and `.env.example` pending provider-release review. The 2026-10-15 deployment includes these controls with collection explicitly disabled; see the latest deployment entry below.
 
@@ -543,3 +543,12 @@ Checks: 275 unit tests, lint, production webpack build/TypeScript and diff check
 Exact next step: review locally by filing a Discover record, then removing it separately and continuing to browse. Await authorization before push/deployment; no Milestone 7 work. Last stable local commit before refinement: `55e2cf2`. Production remains `ec72ac0`. No deployment this session.
 
 Final-build browser rerun passed at both widths, including existing preparation/cancel/cooldown/cache/expiry/reset and playback regressions. Only the isolated test server was stopped; the user’s development server was left running.
+
+
+## Milestone 6 production release (2026-10-23)
+
+User confirmed real-library checks and authorized push/deployment. Pushed `main` through application commit `0e67241` to https://github.com/zhou-ray/record-cabinet and deployed to https://record-cabinet-livid.vercel.app. Vercel deployment `dpl_D5zYM18vpnhcDq5pThrLfrVc71SL`, immutable URL https://record-cabinet-hpl49l7u0-ray-s-stuff.vercel.app, reports READY. Explicit build setting `NEXT_PUBLIC_ENGAGEMENT_ENABLED=false` preserves default-off listening collection. Production webpack build and TypeScript checks passed.
+
+Live Chrome guest tutorial passed at 390px reduced motion and 1400px normal motion, including actual demo audio, tonearm seeking, completion and reload, without Spotify calls, page errors or horizontal overflow. Authenticated filing/removal/retry/reset/expiry behavior was verified locally with mocked providers; the user also confirmed their real-library checks before release. No automated authenticated Spotify requests were made on production.
+
+This release handoff is pushed after the application release. Last stable production application commit: `0e67241`. Repository is clean after the handoff commit. Exact next step: optional signed-in live smoke test after reload; await instructions before Milestone 7. No later milestone started.
