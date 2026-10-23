@@ -207,6 +207,8 @@ export default function RecordBin({ collection, genreEditing, onGenreUpdate }: {
   const gesture = useRef<{ id: number; x: number; y: number; start: number; lastY: number; time: number; velocity: number; moved: boolean; pulled: boolean } | null>(null);
   const suppressClick = useRef(false);
   const album = albums[index];
+  const browsingSelection = useRef({ binId: activeBin?.id, albumId: album?.id });
+  useEffect(() => { browsingSelection.current = { binId: activeBin?.id, albumId: album?.id }; }, [activeBin?.id, album?.id]);
   const engagement = useEngagement();
   const inspectionPending = useRef<{ id: string; timestamp: number; albumId: string; inspect: ReturnType<typeof engagement.captureInspection> } | null>(null);
   const player = usePlayer();
@@ -570,7 +572,12 @@ export default function RecordBin({ collection, genreEditing, onGenreUpdate }: {
         {album.externalUrl && <a className={styles.spotifyLink} href={album.externalUrl} target="_blank" rel="noreferrer">{album.playback.kind === "spotify-pending" ? "Open source song in Spotify ↗" : "Open album in Spotify ↗"}</a>}
         <p className={styles.previewNote}>{album.playback.kind === "none" ? "Manually added record · no audio attached." : album.playback.kind === "local" ? "A 30-second demo of the whole record, in order." : "A whole album, played here. Spotify Premium required."}</p>
         <div className={`${styles.albumTools} ${activeBin.id.startsWith("discovery:") ? styles.discoveryTools : ""}`}>
-        {activeBin.id.startsWith("discovery:") ? <DiscoveryActions key={`${activeBin.id}:${album.id}`} album={album} systems={systems} feedback={discovery.feedback} busy={discovery.busy} onAction={destination => discovery.act(activeBin.id, album, destination)} onCreate={discovery.createSystem} /> : <AlbumFiling key={album.id} album={album} systems={systems} systemId={systemId} onSelect={id => saveOrganization(systems, id)} onChange={updateSystem} onCreate={createSystem} />}
+        {activeBin.id.startsWith("discovery:") ? <DiscoveryActions key={`${activeBin.id}:${album.id}`} album={album} systems={systems} feedback={discovery.feedback} busy={discovery.busy} onAction={destination => discovery.act(activeBin.id, album, destination, () => {
+          if (browsingSelection.current.binId !== activeBin.id || browsingSelection.current.albumId !== album.id) return;
+          const remaining = activeBin.albums.filter(item => item.id !== album.id);
+          if (remaining.length) openBin({ ...activeBin, albums: remaining }, index % remaining.length);
+          else backToShelf();
+        })} onCreate={discovery.createSystem} /> : <AlbumFiling key={album.id} album={album} systems={systems} systemId={systemId} onSelect={id => saveOrganization(systems, id)} onChange={updateSystem} onCreate={createSystem} />}
         <GenreEditor key={`genres:${album.id}`} albums={collection} album={album} disabled={!genreEditing} onUpdate={onGenreUpdate} />
         </div>
         {storageMessage && <p role="status">{storageMessage}</p>}

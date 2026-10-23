@@ -207,7 +207,7 @@ export function createEngagementStorage(userId: string, factory: IDBFactory = in
                 feedback.onsuccess = () => {
                   try {
                     const rows: DiscoveryFeedback[] = (feedback.result ?? []).map((row: DiscoveryFeedback) => checkedDiscoveryFeedback(row, userId));
-                    result = { ...snapshot, bins: snapshot.bins.map(bin => ({ ...bin, albumIds: bin.albumIds.filter(id => !rows.some(row => row.bin === bin.type && row.albumId === id && row.timestamp <= now)) })) };
+                    result = { ...snapshot, bins: snapshot.bins.map(bin => ({ ...bin, albumIds: bin.albumIds.filter(id => !rows.some(row => row.action !== "file" && row.bin === bin.type && row.albumId === id && row.timestamp <= now)) })) };
                     metadata.put({ generation: captured, snapshot: result }, "discovery-snapshot");
                   } catch (error) { fail(error); }
                 };

@@ -176,6 +176,10 @@ const sources = Object.fromEntries(['saved-membership', 'discovery-snapshot', 'e
       check((await writer.saveDiscovery(replacement, 1000 + ttl)).id === 'replacement', 'expiry permits replacement');
       check((await writer.saveDiscovery(snapshot, 1000)).id === 'replacement', 'late older generation cannot overwrite newer');
       const feedback = {userId:user,albumId:'spotify:one',bin:'wander',snapshotId:replacement.id,action:'remove',timestamp:replacement.generatedAt};
+      const filed = {...feedback,action:'file',timestamp:feedback.timestamp-1,destination:{systemId:'system',binId:'bin'}};
+      await writer.saveDiscoveryFeedback(filed,replacement.generatedAt);
+      check((await repo.load()).discovery.bins[1].albumIds.length === 1,'filing keeps the source assignment');
+      check((await writer.saveDiscovery(replacement,replacement.generatedAt,replacement.id)).bins[1].albumIds.length === 1,'transaction does not filter filed records');
       const historyBefore = await repo.load();
       await writer.saveDiscoveryFeedback(feedback,replacement.generatedAt);
       await peer.saveDiscoveryFeedback(feedback,replacement.generatedAt);

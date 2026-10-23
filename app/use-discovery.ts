@@ -98,19 +98,20 @@ export function useDiscovery(collection: Album[]) {
       });
     } finally { running.current = false; setBusy(false); }
   }
-  async function act(binId: string, album: Album, destination?: DiscoveryDestination) {
+  async function act(binId: string, album: Album, destination?: DiscoveryDestination, onRemoved?: () => void) {
     return exclusive(async () => {
       const ticket = ++epoch.current, repo = createEngagementStorage(accountId), writer = await repo.writer();
       const history = await repo.load(), albumId = membershipAlbumId(album);
       const source = history.discovery?.bins.find(bin => `discovery:${bin.type}:${history.discovery!.id}` === binId && bin.albumIds.includes(albumId ?? ""));
       if (!source || !albumId || !history.discovery || !discoveryIsCurrent(history.discovery, Date.now()) || history.generation !== writer.generation || ticket !== epoch.current) throw new Error("This Discover set changed. Return to the shelf and open it again.");
-      const decision: DiscoveryFeedback = { userId: accountId, albumId, bin: source.type, snapshotId: history.discovery.id, action: destination ? "move" : "remove", timestamp: Date.now(), ...(destination ? { destination } : {}) };
+      const decision: DiscoveryFeedback = { userId: accountId, albumId, bin: source.type, snapshotId: history.discovery.id, action: destination ? "file" : "remove", timestamp: Date.now(), ...(destination ? { destination } : {}) };
       const finish = async () => {
         if (!available.current || ticket !== epoch.current) throw new Error("Discovery changed. Open the bin again before retrying.");
         const result = await writer.saveDiscoveryFeedback(decision, Date.now());
         if (ticket !== epoch.current) return;
+        if (!destination) onRemoved?.();
         setSnapshot(result); setNow(Date.now()); setFeedback(previous => [...previous.filter(row => row.albumId !== decision.albumId || row.bin !== decision.bin), decision]);
-        setMessage(destination ? "Record filed in your personal bin and removed from this Discover bin." : "Record removed from this Discover bin. It is still in your library.");
+        setMessage(destination ? "Record filed in your personal bin. It stays in Discover." : "Record removed from this Discover bin. It is still in your library.");
         const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(`record-cabinet-discovery:${accountId}`) : null;
         channel?.postMessage("changed"); channel?.close();
       };

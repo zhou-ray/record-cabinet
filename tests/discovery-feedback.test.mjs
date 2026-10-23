@@ -36,3 +36,14 @@ test('feedback export includes decisions and destinations without account/unknow
  const result=createPersonalizationExport({accountId:account,exportedAt:now,albums:[],organization:{arrangement:'artist',systemId:'',systems:[]},events:[],sessions:[],feedback:[move]});
  assert.equal(result.generatedBins.feedback[0].action,'move');assert.deepEqual(result.generatedBins.feedback[0].destination,{systemId:'system',binId:'bin'});assert.ok(!JSON.stringify(result).includes('secret'));assert.ok(!JSON.stringify(result).includes(account));
 });
+
+test('filing keeps the current snapshot and does not exclude future assignments',()=>{
+ const filed={...feedback,action:'file',destination:{systemId:'system',binId:'bin'}};
+ assert.deepEqual(checkedDiscoveryFeedback(filed,account),filed);
+ const snapshot={id:'set',accountId:account,bins:[{type:'wander',albumIds:['spotify:a']}]};
+ assert.equal(applyDiscoveryFeedback(snapshot,filed),snapshot);
+ const albums=['a','b','c','d'].map(id=>({id:`spotify:${id}`,source:'spotify',artist:'Artist',artists:[],playback:{kind:'spotify',uri:`spotify:album:${id}`}}));
+ const input={id:'new',accountId:account,now,albums,membership:albums.map(a=>({albumId:a.id,saved:true,checkedAt:now,source:'spotify-library-contains'})),events:[],behavioral:true,random:()=>.5};
+ assert.deepEqual(generateDiscovery({...input,feedback:[filed]}),generateDiscovery(input));
+ assert.throws(()=>checkedDiscoveryFeedback({...filed,destination:undefined},account));
+});

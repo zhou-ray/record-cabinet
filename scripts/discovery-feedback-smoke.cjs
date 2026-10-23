@@ -96,7 +96,7 @@ function cookie() {
   await page.waitForFunction(()=>!document.querySelector('button[title="Play this album"]').disabled);
   await page.getByRole('button',{name:/^Play .* by tapping the vinyl$/}).click();
   await page.getByRole('button',{name:'Pause record',exact:true}).waitFor();
-  await page.getByRole('button',{name:'Move to personal bin',exact:true}).click();
+  await page.getByRole('button',{name:'File in bin',exact:true}).click();
   const panel=page.getByRole('region',{name:/Choose a personal bin/});
   assert.equal(await panel.locator('strong').count(),8,'bounded destination list');
   await panel.screenshot({path:`/private/tmp/rc-feedback-picker-${width}.png`});
@@ -106,25 +106,30 @@ function cookie() {
   // Force the second store to fail, after personal filing succeeds.
   await page.evaluate(()=>{window.originalPut=IDBObjectStore.prototype.put;IDBObjectStore.prototype.put=function(value,key){if(key==='discovery-feedback')throw new Error('Injected feedback failure');return window.originalPut.call(this,value,key);};});
   await panel.getByRole('button',{name:'Destination 19-4 System 19'}).click();
-  await page.getByRole('button',{name:'Retry removal',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Retry feedback',exact:true}).waitFor();
   assert.equal((await read()).snapshot.bins[1].albumIds.length,20);
   const moved=first.snapshot.bins[1].albumIds[0];
   assert.equal(await page.evaluate(({account,moved})=>JSON.parse(localStorage.getItem(`record-cabinet-systems:${account}`)).systems.find(s=>s.id==='system19').assignments[moved],{account,moved}),'bin4');
   await page.evaluate(()=>{IDBObjectStore.prototype.put=window.originalPut;});
-  await page.getByRole('button',{name:'Retry removal',exact:true}).click();
-  await page.getByRole('button',{name:'Open Wander, 19 records',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Retry feedback',exact:true}).click();
+  await page.getByText('Filed in your personal bin. This record stays in Discover.',{exact:true}).waitFor();
+  assert.equal((await read()).snapshot.bins[1].albumIds.length,20);
+  assert.equal(await page.getByRole('heading',{name:'Wander',exact:true}).count(),1);
   assert.equal(await page.evaluate(()=>window.mockPlayer.state.paused),false,'filing preserves playback');
   assert.ok(!playbackCalls.includes('pause'));
   await page.reload();await page.getByRole('button',{name:'Discover',exact:true}).click();
-  await page.getByRole('button',{name:'Open Wander, 19 records',exact:true}).click();
+  await page.getByRole('button',{name:'Open Wander, 20 records',exact:true}).click();
   await page.locator('[class*=touchSurface]').click();
   await page.getByRole('button',{name:'Remove from this Discover bin',exact:true}).click();
-  await page.getByRole('button',{name:'Open Wander, 18 records',exact:true}).waitFor();
+  await page.getByRole('heading',{name:'Wander',exact:true}).waitFor();
+  await page.waitForFunction(()=>!document.getElementById('album-details'));
+  assert.equal(await page.locator('[class*=albumInfo] h2').innerText(),`Record ${first.snapshot.bins[1].albumIds[1].split(':a')[1].padStart(3,'0')}`);
+  assert.equal((await read()).snapshot.bins[1].albumIds.length,19);
   assert.equal((await read()).snapshot.bins[2].albumIds.length,20);
   assert.equal(requests,4,'feedback makes no Spotify requests');
   const after=(await read()).snapshot;
   const excluded=first.snapshot.bins[1].albumIds.filter(id=>!after.bins[1].albumIds.includes(id));
-  assert.equal(excluded.length,2);
+  assert.equal(excluded.length,1);
   await page.evaluate(async account=>{
     const db=await new Promise(resolve=>{const r=indexedDB.open(`record-cabinet-engagement:${account}`);r.onsuccess=()=>resolve(r.result);});
     await new Promise(resolve=>{const tx=db.transaction('metadata','readwrite'),store=tx.objectStore('metadata'),r=store.get('discovery-snapshot');r.onsuccess=()=>{const value=r.result;value.snapshot.generatedAt-=8*86400000;value.snapshot.expiresAt-=8*86400000;store.put(value,'discovery-snapshot');};tx.oncomplete=resolve;});db.close();
@@ -139,7 +144,7 @@ function cookie() {
   assert.equal(requests,4,'regeneration reuses membership cache');
   await page.getByRole('button',{name:'Open Wander, 20 records',exact:true}).click();
   await page.locator('[class*=touchSurface]').click();
-  await page.getByRole('button',{name:'Move to personal bin',exact:true}).click();
+  await page.getByRole('button',{name:'File in bin',exact:true}).click();
   await page.getByText('Create a personal system to give this record a home.',{exact:true}).waitFor();
   await page.getByRole('button',{name:'Create a personal system',exact:true}).click();
   await page.getByRole('textbox',{name:'System name',exact:true}).fill('Evenings');
@@ -148,7 +153,26 @@ function cookie() {
   await page.getByRole('button',{name:'Remove bin 2',exact:true}).click();
   await page.getByRole('button',{name:'Create bins & start filing →',exact:true}).click();
   await panel.getByRole('button',{name:'Quiet Evenings',exact:true}).click();
-  await page.getByRole('button',{name:'Open Wander, 19 records',exact:true}).waitFor();
+  await page.getByText('Filed in your personal bin. This record stays in Discover.',{exact:true}).waitFor();
+  assert.equal((await read()).snapshot.bins[1].albumIds.length,20);
+  // A small set exercises last-record wrap and the empty-bin boundary.
+  await page.evaluate(async account=>{
+    const db=await new Promise(resolve=>{const r=indexedDB.open(`record-cabinet-engagement:${account}`);r.onsuccess=()=>resolve(r.result);});
+    await new Promise(resolve=>{const tx=db.transaction('metadata','readwrite'),store=tx.objectStore('metadata'),r=store.get('discovery-snapshot');r.onsuccess=()=>{const value=r.result;value.snapshot.bins[1].albumIds=value.snapshot.bins[1].albumIds.slice(0,3);store.put(value,'discovery-snapshot');};tx.oncomplete=resolve;});db.close();
+  },account);
+  await page.reload();await page.getByRole('button',{name:'Discover',exact:true}).click();
+  await page.getByRole('button',{name:'Open Wander, 3 records',exact:true}).click();
+  await page.locator('[class*=touchSurface]').focus();await page.keyboard.press('End');
+  const small=(await read()).snapshot.bins[1].albumIds;
+  for(let remaining=3;remaining>0;remaining--){
+    await page.locator('[class*=touchSurface]').click();
+    await page.getByRole('button',{name:'Remove from this Discover bin',exact:true}).click();
+    await page.waitForFunction(()=>!document.getElementById('album-details'));
+    assert.equal((await read()).snapshot.bins[1].albumIds.length,remaining-1);
+    if(remaining===3)assert.equal(await page.locator('[class*=albumInfo] h2').innerText(),`Record ${small[0].split(':a')[1].padStart(3,'0')}`,'removing last wraps to first');
+    if(remaining>1)assert.equal(await page.getByRole('heading',{name:'Wander',exact:true}).count(),1);
+  }
+  assert.equal(await page.getByRole('heading',{name:'Wander',exact:true}).count(),0,'empty bin returns to shelf');
   assert.deepEqual(errors,[]);
   await page.screenshot({path:`/private/tmp/rc-feedback-${width}.png`,fullPage:true});
   await context.close();console.log(`Discovery feedback passed at ${width}px`);

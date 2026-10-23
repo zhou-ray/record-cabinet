@@ -1418,3 +1418,8 @@ This is NOT a complete Milestone 6 implementation. No feedback UI is exposed yet
 ## Milestone 6 completion decision record (2026-10-23)
 
 The foundation above is now exposed through source-specific Move/Remove controls on Discover sleeves. Move confirms a real personal assignment before applying feedback. The two stores are deliberately coordinated rather than presented as atomic: if feedback fails after filing, preserve the filing and offer removal-only retry with the original generation-bound writer. Never roll back personal organization. A bounded searchable destination picker spans systems, prioritizes recent destinations and offers system creation. Explicit organization feedback is independent of listening collection, exported/reset locally, and introduces no provider requests. Pin/Keep remains optional and deferred; no Milestone 7 diagnostics were added. See discovery-progress.md for verification and concurrency limitations.
+
+
+## Milestone 6 interaction refinement (2026-10-23)
+
+User review supersedes the original combined Move interaction: File in bin assigns a personal destination and preserves the source Discover record and open sleeve. New `file` feedback is not an exclusion; actual personal membership continues to contribute positively. Remove remains a separate source-only action and advances to the next cover in-place (wrap at the end, shelf only when empty). Legacy `move` decisions retain their original exclusion semantics for compatibility. Partial filing retries feedback only. No Milestone 7 scope added.

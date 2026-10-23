@@ -29,15 +29,16 @@ export default function DiscoveryActions({ album, systems, feedback, busy, onAct
     setMessage("");
     try {
       const result = await onAction(destination);
-      if (result) { setPending(result); setMessage("Filed in your personal bin. Removing it from Discover did not finish. Your filed copy is safe."); }
+      if (!result && destination) { setOpen(false); setMessage("Filed in your personal bin. This record stays in Discover."); }
+      if (result) { setPending(result); setMessage("Filed in your personal bin. Saving Discover feedback did not finish. Your filed copy is safe."); }
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save this change. Try again."); }
   }
   return <div className={picker.actions}>
     <div className={styles.moveBinControl}>
-      <button disabled={busy || !!pending} aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)}>{open ? "Close destinations" : "Move to personal bin"}</button>
+      <button disabled={busy || !!pending} aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)}>{open ? "Close destinations" : "File in bin"}</button>
       {!pending && <button disabled={busy} onClick={() => void act()}>Remove from this Discover bin</button>}
     </div>
-    {pending ? <div role="status"><p>{message}</p><button disabled={busy} onClick={async () => { try { await pending.retry(); setPending(null); } catch { setMessage("Your personal filing is saved. Removal still could not finish; try again or reopen Discover if the set changed."); } }}>Retry removal</button></div> : <>
+    {pending ? <div role="status"><p>{message}</p><button disabled={busy} onClick={async () => { try { await pending.retry(); setPending(null); setOpen(false); setMessage("Filed in your personal bin. This record stays in Discover."); } catch { setMessage("Your personal filing is saved. Feedback still could not be saved; try again or reopen Discover if the set changed."); } }}>Retry feedback</button></div> : <>
       {message && <p role="alert">{message}</p>}
       {open && <section id={id} className={picker.panel} aria-label={`Choose a personal bin for ${album.title}`}>
         <label>Find a destination<input type="search" value={query} placeholder="Bin or system name" onChange={event => { setQuery(event.target.value); setLimit(8); }} /></label>

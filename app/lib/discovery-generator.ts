@@ -28,7 +28,7 @@ export function generateDiscovery(input: {
 }) {
   const excluded = new Set<string>();
   for (const value of input.feedback ?? []) {
-    try { const row = checkedDiscoveryFeedback(value, input.accountId); if (row.timestamp <= input.now) excluded.add(feedbackKey(row)); } catch { /* Ignore invalid or foreign feedback. */ }
+    try { const row = checkedDiscoveryFeedback(value, input.accountId); if (row.action !== "file" && row.timestamp <= input.now) excluded.add(feedbackKey(row)); } catch { /* Ignore invalid or foreign feedback. */ }
   }
   const eligible = eligibleSavedAlbums(input.albums, input.membership, input.now);
   const scores = input.behavioral ? new Map(scoreDiscovery({ ...input, albums: eligible }).map(row => [row.albumId, row])) : null;
